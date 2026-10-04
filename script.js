@@ -97,12 +97,13 @@ let sortMode = 'price';
 let sortStoreKey = 'pokemonPackSort';
 
 // Only pictures from these sites are accepted when importing a backup
-let allowedImageHosts = ['assets.tcgdex.net', 'images.carddex.dev', 'cardgamer.com'];
+let allowedImageHosts = ['assets.tcgdex.net', 'images.carddex.dev', 'cardgamer.com', 'pkmncards.com'];
 
 // Holo strength per rarity: 0 = none, 1 = maximum. 0.8 and above also get sparkles.
 let holoLevels = {
   'Energy': 0.5,
   'Reverse holo': 0.6,
+  'No foil': 0,
   'Uncommon': 0.4,
   'Ultra Rare': 0.9,
   'Mega Attack Rare': 1,
@@ -262,10 +263,10 @@ let energies = [
   { name: 'Metal', color: '#90a4ae', image: 'https://cardgamer.com/wp-content/uploads/2026/08/30th-Celebration-Energy-016.png' }
 ];
 
-// Ascended Heroes energy: same colours and names, art from the Mega Evolution energy set.
+// Ascended Heroes energy: same colours and names, art from the Mega Evolution Energies set (mee 001-008); a coloured box shows if a picture fails.
 // If a picture is missing the game shows a coloured box instead.
 let ascEnergies = energies.map(function (e, i) {
-  return { name: e.name, color: e.color, image: 'https://assets.tcgdex.net/en/me/mee/' + String(i + 1).padStart(3, '0') + '/low.webp' };
+  return { name: e.name, color: e.color, image: 'https://pkmncards.com/wp-content/uploads/mee_en_' + String(i + 1).padStart(3, '0') + '_std.png' };
 });
 
 function energyKey(energy) {
@@ -1724,7 +1725,8 @@ function buildAscItems() {
     img: energy.image,
     name: energy.name,
     color: energy.color,
-    cardId: null
+    cardId: null,
+    holo: 'No foil'
   }];
   let used = {};
   let chance = ascSlots[5]['God pack %'];
@@ -1749,7 +1751,11 @@ function buildAscItems() {
       if (def.rev) { rev = true; }
       if (def.revUnless && def.revUnless.indexOf(rarity) === -1) { rev = true; }
       let item = { html: cardImage(url), rarity: rarity, key: url, img: url, cardId: priceIdFromUrl(url) };
-      if (rev) { item.holo = 'Reverse holo'; }
+      if (rev) {
+        item.holo = 'Reverse holo';
+      } else if (rarity === 'Common' || rarity === 'Uncommon') {
+        item.holo = 'No foil';
+      }
       items.push(item);
     }
   }
