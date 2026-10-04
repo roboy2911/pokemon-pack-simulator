@@ -182,6 +182,10 @@ function describeLog(e) {
   if (t === 'trade_declined') { return 'Declined a trade from ' + e.with; }
   if (t === 'trade_cancelled') { return 'Cancelled a trade to ' + e.with; }
   if (t === 'trade_paid') { return 'Trade ' + e.status + ': received ' + itemsText(e.got) + ' + ' + (e.gotCoins || 0) + ' coins'; }
+  if (t === 'market_list') { return 'Listed ' + (e.n || 1) + 'x ' + cardLabel(e.k) + ' (' + e.r + ') for ' + e.price + ' coins each'; }
+  if (t === 'market_buy') { return 'Bought ' + cardLabel(e.k) + ' (' + e.r + ') from ' + e.from + ' for ' + e.price + ' coins'; }
+  if (t === 'market_sold') { return 'Sold ' + cardLabel(e.k) + ' to ' + e.to + ' for ' + e.price + ' coins (fee ' + e.fee + ')'; }
+  if (t === 'market_cancel') { return 'Cancelled a listing of ' + cardLabel(e.k) + ' at ' + e.price + ' coins'; }
   if (t === 'admin') { return 'Admin change (' + e.op + ') by ' + (e.by || '?') + ': ' + (e.text || ''); }
   return t;
 }
@@ -247,9 +251,60 @@ async function loadList() {
     adm.users.sort(function (a, b) { return (b.data.updated || 0) - (a.data.updated || 0); });
     adm.view = 'list';
     drawList();
+    loadBank();
   } catch (e) {
     adm.root.innerHTML = '<div class="dev-msg">Could not load players. Check that the database rules are published.</div>';
   }
+}
+
+
+// ----- Marketplace bank: 5% of every sale, used for giveaways -----
+
+async function loadBank() {
+  try {
+    let sold = await getDocs(query(collection(db, 'listings'), where('status', '==', 'sold'), limit(2000)));
+    let fees = 0, sales = 0;
+    sold.forEach(function (d) {
+      let p = Math.floor(Number(d.data().price)) || 0;
+      fees += Math.floor(p * 0.05);
+      sales++;
+    });
+    let paid = 0;
+    let log = [];
+    let snap = await getDocs(query(collection(db, 'bankLog'), limit(500)));
+    snap.forEach(function (d) {
+      let x = d.data();
+      paid += Math.floor(Number(x.amount)) || 0;
+      log.push(x);
+    });
+    log.sort(function (a, b) { return (b.t || 0) - (a.t || 0); });
+    adm.bank = { fees: fees, sales: sales, paid: paid, log: log };
+  } catch (e) {
+    adm.bank = { error: true };
+  }
+  if (adm.view === 'list') { drawBank(); }
+}
+
+function drawBank() {
+  let box = $('adm-bank');
+  if (!box) { return; }
+  let b = adm.bank;
+  if (!b) { box.innerHTML = '<div class="dev-note">Loading marketplace bank...</div>'; return; }
+  if (b.error) { box.innerHTML = '<div class="dev-msg">Could not load the bank. Check the database rules.</div>'; return; }
+  let lines = '';
+  for (let i = 0; i < b.log.length && i < 8; i++) {
+    lines += '<div class="adm-line"><span class="adm-time">' + esc(fmtTime(b.log[i].t)) + '</span> ' +
+      (b.log[i].amount || 0).toLocaleString() + ' coins: ' + esc(b.log[i].note || '') + '</div>';
+  }
+  box.innerHTML = '<div class="adm-sec" style="margin-top:6px">Marketplace bank</div>' +
+    '<div class="adm-grid"><div><b>Available</b><br>' + (b.fees - b.paid).toLocaleString() + ' coins</div>' +
+    '<div><b>Fees collected</b><br>' + b.fees.toLocaleString() + ' (' + b.sales + ' sales)</div>' +
+    '<div><b>Paid out</b><br>' + b.paid.toLocaleString() + '</div></div>' +
+    '<div class="dev-note">Fees are 5% of each sale. Paying a giveaway to a player (open them, tick "pay from bank") records it here. You can also record a payout you made some other way:</div>' +
+    '<div class="adm-edit"><input class="dev-input" id="bank-amt" type="number" min="1" placeholder="Coins" style="width:110px"> ' +
+    '<input class="dev-input" id="bank-note" placeholder="Note (e.g. Discord giveaway)" style="width:240px"> ' +
+    '<button class="dev-btn" data-act="bankrecord">Record payout</button></div>' +
+    '<div class="dev-msg" id="bank-msg"></div>' + (lines || '<div class="tempty">No payouts recorded yet.</div>');
 }
 
 function drawList() {
@@ -262,9 +317,10 @@ function drawList() {
     rows += '<tr data-act="open" data-uid="' + esc(u.uid) + '"><td>' + esc(name) + '</td><td>' + (u.data.coins || 0).toLocaleString() +
       '</td><td>' + (u.data.packs || 0) + '</td><td>' + unique + '</td><td>' + esc(fmtTime(u.data.updated)) + '</td></tr>';
   }
-  adm.root.innerHTML = '<div class="dev-note">' + adm.users.length + ' player(s). Click one to see everything about them.</div>' +
+  adm.root.innerHTML = '<div id="adm-bank"></div><div class="dev-note">' + adm.users.length + ' player(s). Click one to see everything about them.</div>' +
     '<input class="dev-input" id="adm-filter" placeholder="Filter by username" value="' + esc(adm.filter) + '">' +
     '<table class="adm-table"><tr><th>Username</th><th>Coins</th><th>Packs</th><th>Unique cards</th><th>Last saved</th></tr>' + rows + '</table>';
+  drawBank();
   let f = $('adm-filter');
   if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
 }
@@ -404,6 +460,7 @@ function drawDetail() {
     '<div class="adm-sec">Edit this player</div>' +
     '<div class="dev-note">Changes are queued and apply the next time the player has the game open.</div>' +
     '<div class="adm-edit"><input class="dev-input" id="adm-coins" type="number" placeholder="Coins to add (negative removes)" style="width:220px"> ' +
+    '<label class="dev-note"><input type="checkbox" id="adm-frombank"> Pay from marketplace bank (giveaway)</label> ' +
     '<button class="dev-btn" data-act="sendcoins">Send coins change</button></div>' +
     '<div class="adm-edit"><button class="dev-btn' + (adm.mode === 'give' ? '' : ' dev-ghost') + '" data-act="modegive">Give cards</button> ' +
     '<button class="dev-btn' + (adm.mode === 'take' ? '' : ' dev-ghost') + '" data-act="modetake">Take cards</button> ' +
@@ -450,8 +507,26 @@ async function adminClick(e) {
     if (!amount) { msg('Type a number of coins.'); return; }
     if (Math.abs(amount) > MAX_COINS) { msg('That is too many coins.'); return; }
     if (!confirm('Change ' + (adm.detail.user.name || 'this player') + "'s coins by " + amount + '?')) { return; }
-    try { await sendOp({ type: 'coins', amount: amount }); openUser(adm.uid); setTimeout(function () { msg('Queued.', true); }, 600); }
+    try {
+      await sendOp({ type: 'coins', amount: amount });
+      if (amount > 0 && $('adm-frombank') && $('adm-frombank').checked) {
+        await addDoc(collection(db, 'bankLog'), { amount: amount, note: 'Giveaway to ' + (adm.detail.user.name || 'a player'), to: adm.uid, by: adm.me.uid, t: Date.now() });
+        adm.bank = null;
+      }
+      openUser(adm.uid); setTimeout(function () { msg('Queued.', true); }, 600); }
     catch (err) { msg('Could not queue that. Check the database rules.'); }
+  }
+  else if (act === 'bankrecord') {
+    let amt = Math.floor(Number($('bank-amt').value));
+    let note = String($('bank-note').value || '').slice(0, 100);
+    let bm = $('bank-msg');
+    if (!(amt >= 1)) { bm.textContent = 'Type a number of coins.'; return; }
+    try {
+      await addDoc(collection(db, 'bankLog'), { amount: amt, note: note || 'Payout', by: adm.me.uid, t: Date.now() });
+      adm.bank = null;
+      drawBank();
+      loadBank();
+    } catch (err) { bm.textContent = 'Could not record that. Check the database rules.'; }
   }
   else if (act === 'sendcards') {
     if (!adm.pick) { msg('Tap a card first.'); return; }

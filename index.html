@@ -523,6 +523,17 @@
   .dev-box, .tpicker { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   .adm-table { display: block; overflow-x: auto; }
   button, .tab, .tpick, .coll-sell, select { touch-action: manipulation; }
+
+  #market-root { max-width: 760px; margin: 0 auto; }
+  .mk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+  .mk-tile { background: #fff; border: 1px solid #e3ded3; border-radius: 10px; padding: 8px; text-align: center; font-size: 12px; }
+  .mk-tile .bslot { margin: 0 auto 6px; }
+  .mk-name { font-weight: 600; }
+  .mk-rar { display: block; font-weight: 400; color: #8a8478; font-size: 11px; }
+  .mk-price { color: #5a4600; font-weight: 700; margin: 3px 0; }
+  .mk-seller, .mk-time { color: #8a8478; font-size: 11px; }
+  .mk-note { color: #8a8478; margin-top: 6px; font-size: 11px; }
+  .mk-btn { margin-top: 6px; padding: 6px 14px; font-size: 12px; width: 100%; }
 </style>
 </head>
 <body>
@@ -546,8 +557,10 @@
       <button class="tab active" id="tab-coll" onclick="showView('collection')">Collection</button>
       <button class="tab" id="tab-binder" onclick="showView('binder')">Binder</button>
       <button class="tab" id="tab-trades" onclick="showView('trades')">Trades</button>
+      <button class="tab" id="tab-market" onclick="showView('market')">Market</button>
     </div>
     <div id="trade-view" style="display:none"><div id="trade-root"></div></div>
+    <div id="market-view" style="display:none"><div id="market-root"></div></div>
     <div id="binder-view" style="display:none">
       <div class="binder">
         <div class="binder-head">
@@ -590,9 +603,10 @@
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=3"></script>
+  <script src="script.js?v=4"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="trade.js"></script>
   <script type="module" src="admin.js"></script>
+  <script type="module" src="market.js"></script>
 </body>
 </html>

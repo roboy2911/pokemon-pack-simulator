@@ -1151,8 +1151,8 @@ function binderJump(value) {
 }
 
 function showView(name) {
-  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view' };
-  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades' };
+  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view', market: 'market-view' };
+  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades', market: 'tab-market' };
   if (!views[name]) { name = 'collection'; }
   for (let v in views) {
     let el = document.getElementById(views[v]);
@@ -1163,13 +1163,14 @@ function showView(name) {
   try { localStorage.setItem(viewStoreKey, name); } catch (e) {}
   if (name === 'binder') { renderBinder(); }
   if (name === 'trades' && window.renderTrades) { window.renderTrades(); }
+  if (name === 'market' && window.renderMarket) { window.renderMarket(); }
 }
 
 function loadView() {
   let name = 'collection';
   try {
     let saved = localStorage.getItem(viewStoreKey);
-    if (saved === 'binder' || saved === 'trades') { name = saved; }
+    if (saved === 'binder' || saved === 'trades' || saved === 'market') { name = saved; }
   } catch (e) {}
   showView(name);
 }
