@@ -1,0 +1,481 @@
+// Admin tools and admin adjustments (Firebase). Loaded as a module after cloud.js.
+//  - Every player's browser listens for adjustments an admin has queued for them.
+//  - The Players tab of the dev panel (admins only) shows and edits player info.
+import { db, me, pushNow } from './cloud.js';
+import {
+  collection, doc, getDoc, getDocs, addDoc, updateDoc, onSnapshot, query, where, orderBy, limit
+} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+
+const MAX_COINS = 10000000;
+
+function $(id) { return document.getElementById(id); }
+
+// ------------------------------------------------------------------
+// Part 1: applying adjustments an admin queued for this player
+// ------------------------------------------------------------------
+
+let opsUnsub = null;
+let pendingOps = {};
+let opsChain = Promise.resolve();
+
+function stopOps() {
+  if (opsUnsub) { opsUnsub(); opsUnsub = null; }
+  pendingOps = {};
+}
+
+function startOps() {
+  stopOps();
+  let c = me();
+  if (!c) { return; }
+  opsUnsub = onSnapshot(
+    query(collection(db, 'users', c.uid, 'adminOps'), where('done', '==', false)),
+    function (snap) {
+      snap.docChanges().forEach(function (ch) {
+        if (ch.type !== 'removed') { pendingOps[ch.doc.id] = ch.doc.data(); }
+      });
+      opsChain = opsChain.then(runOps).catch(function () {});
+    },
+    function () {}
+  );
+}
+
+async function runOps() {
+  let c = me();
+  if (!c) { return; }
+  let notes = [];
+  let ids = Object.keys(pendingOps);
+  for (let i = 0; i < ids.length; i++) {
+    let id = ids[i];
+    let op = pendingOps[id];
+    let key = 'op:' + id;
+    if (!settled[key]) {
+      let text = applyOp(op, key);
+      if (text) { notes.push(text); }
+      saveSettled();
+      try { await pushNow(); } catch (e) {}
+      if (window.cloudLog) { window.cloudLog('admin', { op: String(op.type), text: text || '', by: String(op.byName || '') }); }
+    }
+    try {
+      await updateDoc(doc(db, 'users', c.uid, 'adminOps', id), { done: true });
+      delete pendingOps[id];
+    } catch (e) {}
+  }
+  if (notes.length) {
+    $('info').innerText = 'An admin changed your account: ' + notes.join(' ');
+    updateShop();
+    renderCollection();
+    if (typeof checkRewards === 'function') { checkRewards(); }
+  }
+}
+
+function applyOp(op, key) {
+  if (!op || typeof op !== 'object') { return ''; }
+  if (op.type === 'coins') {
+    let amount = Math.max(-MAX_COINS, Math.min(MAX_COINS, Math.floor(Number(op.amount) || 0)));
+    coins = Math.max(0, coins + amount);
+    settled[key] = true;
+    saveCoins();
+    return (amount >= 0 ? '+' : '') + amount + ' coins.';
+  }
+  if (op.type === 'cards') {
+    let items = Array.isArray(op.items) ? op.items.slice(0, 40) : [];
+    let adds = {};
+    let takes = {};
+    for (let i = 0; i < items.length; i++) {
+      let it = items[i];
+      if (!it || typeof it.key !== 'string') { continue; }
+      let n = Math.floor(Number(it.n));
+      if (!n) { continue; }
+      if (n > 0) {
+        adds[it.key] = { count: Math.min(n, 999), rarity: it.rarity, img: it.img || '', name: it.name || '', color: it.color || '' };
+      } else {
+        takes[it.key] = Math.min(-n, 999);
+      }
+    }
+    let clean = cleanBackup({ cards: adds, packs: 0 });
+    let data = loadCollection();
+    let given = 0, taken = 0;
+    if (clean) {
+      for (let k in clean.cards) {
+        let c = clean.cards[k];
+        if (!data.cards[k]) { data.cards[k] = { count: 0, rarity: c.rarity, img: c.img, name: c.name, color: c.color }; }
+        data.cards[k].count += c.count;
+        given += c.count;
+      }
+    }
+    for (let k in takes) {
+      if (!data.cards[k]) { continue; }
+      let n = Math.min(takes[k], data.cards[k].count);
+      data.cards[k].count -= n;
+      taken += n;
+      if (data.cards[k].count <= 0) { delete data.cards[k]; }
+    }
+    settled[key] = true;
+    saveCollection(data);
+    let parts = [];
+    if (given) { parts.push(given + ' card(s) added.'); }
+    if (taken) { parts.push(taken + ' card(s) removed.'); }
+    return parts.join(' ') || 'Cards adjusted.';
+  }
+  if (op.type === 'reset') {
+    let fresh = { coins: 500, lastDaily: 0, streak: 0, collection: { cards: {}, packs: 0 }, settled: {} };
+    fresh.settled[key] = true;
+    applySaveData(fresh);
+    return 'Your account was reset.';
+  }
+  settled[key] = true;
+  return '';
+}
+
+window.addEventListener('cloud-ready', startOps);
+window.addEventListener('cloud-out', stopOps);
+
+// ------------------------------------------------------------------
+// Part 2: the Players tab (admins only)
+// ------------------------------------------------------------------
+
+let adm = null;   // state for the open panel
+
+function fmtTime(t) {
+  if (!t) { return '-'; }
+  try { return new Date(t).toLocaleString(); } catch (e) { return String(t); }
+}
+
+function cardLabel(key) {
+  key = String(key || '');
+  let m = key.match(/\/30th\/(\d{3})\//);
+  if (m) { return '#' + Number(m[1]); }
+  let cc = key.match(/30ccc-(\d+)/);
+  if (cc) { return 'CC' + Number(cc[1]); }
+  if (key.indexOf('energy-') === 0) { return key.slice(7) + ' Energy'; }
+  let x = key.match(/30c-([A-Za-z0-9]+)\.webp/);
+  if (x) { return 'Mew ' + x[1]; }
+  return key.slice(-12);
+}
+
+function itemsText(list) {
+  if (!Array.isArray(list) || !list.length) { return 'no cards'; }
+  let parts = [];
+  for (let i = 0; i < list.length && i < 12; i++) {
+    parts.push((list[i].n > 1 ? list[i].n + 'x ' : '') + cardLabel(list[i].k) + (list[i].r ? ' (' + list[i].r + ')' : ''));
+  }
+  return parts.join(', ') + (list.length > 12 ? ' ...' : '');
+}
+
+function describeLog(e) {
+  let t = e.type;
+  if (t === 'pack') {
+    let counts = {};
+    let cards = Array.isArray(e.cards) ? e.cards : [];
+    for (let i = 0; i < cards.length; i++) { counts[cards[i].r] = (counts[cards[i].r] || 0) + 1; }
+    let parts = [];
+    for (let r in counts) { parts.push(counts[r] + ' ' + r); }
+    return 'Opened a pack: ' + parts.join(', ');
+  }
+  if (t === 'sell') { return 'Sold ' + cardLabel(e.k) + ' (' + e.r + ') for ' + e.coins + ' coins'; }
+  if (t === 'sellAll') { return 'Sold ' + e.n + ' spare cards for ' + e.coins + ' coins'; }
+  if (t === 'daily') { return 'Claimed daily reward: ' + e.coins + ' coins (day ' + e.streak + ')'; }
+  if (t === 'reward') { return 'Reward ' + e.kind + ': ' + e.coins + ' coins'; }
+  if (t === 'login') { return 'Signed in'; }
+  if (t === 'trade_sent') { return 'Sent a trade to ' + e.toName + ': gives ' + itemsText(e.give) + ' + ' + (e.giveCoins || 0) + ' coins, wants ' + itemsText(e.get) + ' + ' + (e.getCoins || 0) + ' coins'; }
+  if (t === 'trade_accept') { return 'Accepted a trade from ' + e.fromName + ': paid ' + itemsText(e.give) + ' + ' + (e.giveCoins || 0) + ' coins'; }
+  if (t === 'trade_declined') { return 'Declined a trade from ' + e.with; }
+  if (t === 'trade_cancelled') { return 'Cancelled a trade to ' + e.with; }
+  if (t === 'trade_paid') { return 'Trade ' + e.status + ': received ' + itemsText(e.got) + ' + ' + (e.gotCoins || 0) + ' coins'; }
+  if (t === 'admin') { return 'Admin change (' + e.op + ') by ' + (e.by || '?') + ': ' + (e.text || ''); }
+  return t;
+}
+
+function tradeText(t) {
+  return t.fromName + ' -> ' + t.toName + ' [' + t.status + ']: gives ' + itemsText(compactItems(t.offerItems)) + ' + ' + (t.offerCoins || 0) +
+    ' coins, wants ' + itemsText(compactItems(t.askItems)) + ' + ' + (t.askCoins || 0) + ' coins';
+}
+
+function compactItems(items) {
+  let out = [];
+  let list = Array.isArray(items) ? items : [];
+  for (let i = 0; i < list.length; i++) { out.push({ k: list[i].key, n: list[i].n, r: list[i].rarity }); }
+  return out;
+}
+
+function parseCards(json) {
+  let cards = {};
+  try { cards = JSON.parse(json || '{}'); } catch (e) { cards = {}; }
+  let clean = cleanBackup({ cards: cards, packs: 0 });
+  return clean ? clean.cards : {};
+}
+
+function msg(text, ok) {
+  let el = $('adm-msg');
+  if (!el) { return; }
+  el.textContent = text;
+  el.className = 'dev-msg' + (ok ? ' good' : '');
+}
+
+window.renderAdmin = async function (root) {
+  let c = me();
+  if (!c) {
+    root.innerHTML = '<div class="dev-note">Sign in to the game first (button at the top left), then open this tab again.</div>';
+    return;
+  }
+  root.innerHTML = '<div class="dev-note">Checking admin access...</div>';
+  let isAdmin = false;
+  try {
+    let snap = await getDoc(doc(db, 'admins', c.uid));
+    isAdmin = snap.exists();
+  } catch (e) { isAdmin = false; }
+  if (!isAdmin) {
+    root.innerHTML = '<div class="dev-note">This account is not an admin.<br>To make it one, in the Firebase console open Firestore Database, create a collection called <b>admins</b>, and add a document whose ID is this account\'s user ID:</div>' +
+      '<input class="dev-input" readonly value="' + esc(c.uid) + '" onclick="this.select()">' +
+      '<div class="dev-note">Then close and reopen this tab.</div>';
+    return;
+  }
+  adm = { root: root, me: c, view: 'list', users: [], filter: '', uid: null, detail: null, mode: 'give', rarity: 'Common', pick: null };
+  root.onclick = adminClick;
+  root.oninput = function (e) {
+    if (e.target.id === 'adm-filter') { adm.filter = e.target.value.toLowerCase(); drawList(); }
+  };
+  loadList();
+};
+
+async function loadList() {
+  adm.root.innerHTML = '<div class="dev-note">Loading players...</div>';
+  try {
+    let snap = await getDocs(query(collection(db, 'users'), limit(300)));
+    adm.users = [];
+    snap.forEach(function (d) { adm.users.push({ uid: d.id, data: d.data() }); });
+    adm.users.sort(function (a, b) { return (b.data.updated || 0) - (a.data.updated || 0); });
+    adm.view = 'list';
+    drawList();
+  } catch (e) {
+    adm.root.innerHTML = '<div class="dev-msg">Could not load players. Check that the database rules are published.</div>';
+  }
+}
+
+function drawList() {
+  let rows = '';
+  for (let i = 0; i < adm.users.length; i++) {
+    let u = adm.users[i];
+    let name = String(u.data.name || '(no name)');
+    if (adm.filter && name.toLowerCase().indexOf(adm.filter) === -1) { continue; }
+    let unique = Object.keys(parseCards(u.data.cardsJson)).length;
+    rows += '<tr data-act="open" data-uid="' + esc(u.uid) + '"><td>' + esc(name) + '</td><td>' + (u.data.coins || 0).toLocaleString() +
+      '</td><td>' + (u.data.packs || 0) + '</td><td>' + unique + '</td><td>' + esc(fmtTime(u.data.updated)) + '</td></tr>';
+  }
+  adm.root.innerHTML = '<div class="dev-note">' + adm.users.length + ' player(s). Click one to see everything about them.</div>' +
+    '<input class="dev-input" id="adm-filter" placeholder="Filter by username" value="' + esc(adm.filter) + '">' +
+    '<table class="adm-table"><tr><th>Username</th><th>Coins</th><th>Packs</th><th>Unique cards</th><th>Last saved</th></tr>' + rows + '</table>';
+  let f = $('adm-filter');
+  if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+}
+
+async function openUser(uid) {
+  adm.uid = uid;
+  adm.view = 'detail';
+  adm.pick = null;
+  adm.root.innerHTML = '<div class="dev-note">Loading player...</div>';
+  let out = { user: null, logs: [], trades: [], ops: [], errors: [] };
+  try {
+    let s = await getDoc(doc(db, 'users', uid));
+    out.user = s.exists() ? s.data() : null;
+  } catch (e) { out.errors.push('player'); }
+  try {
+    let s = await getDocs(query(collection(db, 'users', uid, 'log'), orderBy('t', 'desc'), limit(100)));
+    s.forEach(function (d) { out.logs.push(d.data()); });
+  } catch (e) { out.errors.push('history'); }
+  try {
+    let a = await getDocs(query(collection(db, 'trades'), where('from', '==', uid), limit(50)));
+    let b = await getDocs(query(collection(db, 'trades'), where('to', '==', uid), limit(50)));
+    a.forEach(function (d) { out.trades.push(d.data()); });
+    b.forEach(function (d) { out.trades.push(d.data()); });
+    out.trades.sort(function (x, y) { return (y.updated || 0) - (x.updated || 0); });
+  } catch (e) { out.errors.push('trades'); }
+  try {
+    let s = await getDocs(query(collection(db, 'users', uid, 'adminOps'), orderBy('t', 'desc'), limit(20)));
+    s.forEach(function (d) { out.ops.push(d.data()); });
+  } catch (e) { out.errors.push('admin changes'); }
+  adm.detail = out;
+  drawDetail();
+}
+
+function allCardsFor(rarity) {
+  let list = [];
+  if (rarity === 'Energy') {
+    for (let i = 0; i < energies.length; i++) {
+      list.push({ key: 'energy-' + energies[i].name, rarity: 'Energy', img: energies[i].image, name: energies[i].name, color: energies[i].color, count: 1 });
+    }
+  } else {
+    let urls = byRarity[rarity] || [];
+    for (let i = 0; i < urls.length; i++) {
+      list.push({ key: urls[i], rarity: rarity, img: urls[i], name: '', color: '', count: 1 });
+    }
+  }
+  return list;
+}
+
+function pickerHtml(list) {
+  let html = '';
+  for (let i = 0; i < list.length; i++) {
+    let card = list[i];
+    let on = adm.pick && adm.pick.key === card.key;
+    html += '<div class="tpick' + (on ? ' sel' : '') + '" data-act="pickcard" data-i="' + i + '">' +
+      binderSlotHtml({ label: '' }, card, 56, 77) + '<div class="tcount">' + esc(cardLabel(card.key)) + '</div></div>';
+  }
+  return '<div class="tpicker adm-picker">' + html + '</div>';
+}
+
+function currentPickList() {
+  if (adm.mode === 'take') {
+    let cards = parseCards(adm.detail.user && adm.detail.user.cardsJson);
+    let out = [];
+    for (let k in cards) { out.push({ key: k, rarity: cards[k].rarity, img: cards[k].img, name: cards[k].name, color: cards[k].color, count: cards[k].count }); }
+    return out;
+  }
+  return allCardsFor(adm.rarity);
+}
+
+function drawDetail() {
+  let d = adm.detail;
+  let u = d.user;
+  if (!u) {
+    adm.root.innerHTML = '<button class="dev-btn dev-ghost" data-act="back">Back</button><div class="dev-msg">Could not load that player.</div>';
+    return;
+  }
+  let cards = parseCards(u.cardsJson);
+  let keys = Object.keys(cards);
+  let total = 0;
+  for (let i = 0; i < keys.length; i++) { total += cards[keys[i]].count; }
+
+  let chips = '';
+  let owned = {};
+  for (let i = 0; i < keys.length; i++) { owned[cards[keys[i]].rarity] = (owned[cards[keys[i]].rarity] || 0) + 1; }
+  for (let i = 0; i < rarityOrder.length; i++) {
+    let r = rarityOrder[i];
+    let t = r === 'Energy' ? energies.length : (byRarity[r] ? byRarity[r].length : 0);
+    if (t) { chips += '<span class="chip">' + esc(r) + ' ' + Math.min(owned[r] || 0, t) + '/' + t + '</span>'; }
+  }
+  keys.sort(function (a, b) {
+    let ra = rarityOrder.indexOf(cards[a].rarity); if (ra === -1) { ra = 99; }
+    let rb = rarityOrder.indexOf(cards[b].rarity); if (rb === -1) { rb = 99; }
+    return ra - rb;
+  });
+  let thumbs = '';
+  for (let i = 0; i < keys.length; i++) { thumbs += binderSlotHtml({ label: '' }, cards[keys[i]], 56, 77); }
+
+  let logHtml = '';
+  for (let i = 0; i < d.logs.length; i++) {
+    logHtml += '<div class="adm-line"><span class="adm-time">' + esc(fmtTime(d.logs[i].t)) + '</span> ' + esc(describeLog(d.logs[i])) + '</div>';
+  }
+  let tradeHtml = '';
+  for (let i = 0; i < d.trades.length; i++) {
+    tradeHtml += '<div class="adm-line"><span class="adm-time">' + esc(fmtTime(d.trades[i].updated)) + '</span> ' + esc(tradeText(d.trades[i])) + '</div>';
+  }
+  let opsHtml = '';
+  for (let i = 0; i < d.ops.length; i++) {
+    let o = d.ops[i];
+    let what = o.type === 'coins' ? (o.amount >= 0 ? '+' : '') + o.amount + ' coins' : (o.type === 'cards' ? itemsText(compactItems(o.items)) : 'reset account');
+    opsHtml += '<div class="adm-line"><span class="adm-time">' + esc(fmtTime(o.t)) + '</span> ' + esc(what) + ' by ' + esc(o.byName || '?') + ' [' + (o.done ? 'applied' : 'waiting for player') + ']</div>';
+  }
+  let errs = d.errors.length ? '<div class="dev-msg">Could not load: ' + esc(d.errors.join(', ')) + '. Check the database rules.</div>' : '';
+
+  let rarityOptions = '';
+  for (let i = 0; i < rarityOrder.length; i++) {
+    rarityOptions += '<option' + (rarityOrder[i] === adm.rarity ? ' selected' : '') + '>' + esc(rarityOrder[i]) + '</option>';
+  }
+  let list = currentPickList();
+  let pickText = adm.pick ? 'Selected: ' + cardLabel(adm.pick.key) : 'Tap a card to select it';
+
+  adm.root.innerHTML =
+    '<button class="dev-btn dev-ghost" data-act="back">&lsaquo; All players</button> <button class="dev-btn dev-ghost" data-act="refresh">Refresh</button>' +
+    '<h3 class="adm-h">' + esc(u.name || '(no name)') + '</h3>' + errs +
+    '<div class="adm-grid">' +
+    '<div><b>Coins</b><br>' + (u.coins || 0).toLocaleString() + '</div>' +
+    '<div><b>Packs opened</b><br>' + (u.packs || 0) + '</div>' +
+    '<div><b>Unique / total cards</b><br>' + keys.length + ' / ' + total + '</div>' +
+    '<div><b>Daily streak</b><br>' + (u.streak || 0) + '</div>' +
+    '<div><b>Last daily</b><br>' + esc(fmtTime(u.lastDaily)) + '</div>' +
+    '<div><b>Last saved</b><br>' + esc(fmtTime(u.updated)) + '</div>' +
+    '</div>' +
+    '<div class="dev-note">User ID: ' + esc(adm.uid) + '</div>' +
+
+    '<div class="adm-sec">Collection</div><div class="chips">' + chips + '</div>' +
+    '<div class="tthumbs" style="margin-top:8px">' + (thumbs || '<span class="tempty">No cards.</span>') + '</div>' +
+
+    '<div class="adm-sec">Edit this player</div>' +
+    '<div class="dev-note">Changes are queued and apply the next time the player has the game open.</div>' +
+    '<div class="adm-edit"><input class="dev-input" id="adm-coins" type="number" placeholder="Coins to add (negative removes)" style="width:220px"> ' +
+    '<button class="dev-btn" data-act="sendcoins">Send coins change</button></div>' +
+    '<div class="adm-edit"><button class="dev-btn' + (adm.mode === 'give' ? '' : ' dev-ghost') + '" data-act="modegive">Give cards</button> ' +
+    '<button class="dev-btn' + (adm.mode === 'take' ? '' : ' dev-ghost') + '" data-act="modetake">Take cards</button> ' +
+    (adm.mode === 'give' ? '<select class="dev-input" id="adm-rarity" style="width:auto">' + rarityOptions + '</select> ' : '') +
+    '<input class="dev-input" id="adm-qty" type="number" min="1" value="1" style="width:80px"> ' +
+    '<button class="dev-btn" data-act="sendcards">' + (adm.mode === 'give' ? 'Give' : 'Take') + '</button> <span class="dev-note">' + esc(pickText) + '</span></div>' +
+    pickerHtml(list) +
+    '<div class="adm-edit"><button class="dev-btn adm-danger" data-act="reset">Reset this player</button></div>' +
+    '<div class="dev-msg" id="adm-msg"></div>' +
+
+    '<div class="adm-sec">Admin changes</div>' + (opsHtml || '<div class="tempty">None.</div>') +
+    '<div class="adm-sec">Trades (' + d.trades.length + ')</div>' + (tradeHtml || '<div class="tempty">None.</div>') +
+    '<div class="adm-sec">Activity history (latest 100)</div>' + (logHtml || '<div class="tempty">Nothing recorded yet. History starts from when this update went live.</div>');
+}
+
+async function sendOp(op) {
+  op.by = adm.me.uid;
+  op.byName = adm.me.name;
+  op.t = Date.now();
+  op.done = false;
+  await addDoc(collection(db, 'users', adm.uid, 'adminOps'), op);
+}
+
+async function adminClick(e) {
+  let el = e.target.closest('[data-act]');
+  if (!el) { return; }
+  let act = el.dataset.act;
+  if (act === 'open') { openUser(el.dataset.uid); }
+  else if (act === 'back') { loadList(); }
+  else if (act === 'refresh') { openUser(adm.uid); }
+  else if (act === 'modegive') { adm.mode = 'give'; adm.pick = null; drawDetail(); }
+  else if (act === 'modetake') { adm.mode = 'take'; adm.pick = null; drawDetail(); }
+  else if (act === 'pickcard') {
+    let list = currentPickList();
+    adm.pick = list[Number(el.dataset.i)] || null;
+    let q = $('adm-qty') ? $('adm-qty').value : '1';
+    let s = adm.root.querySelector('.adm-picker') ? adm.root.querySelector('.adm-picker').scrollTop : 0;
+    drawDetail();
+    if ($('adm-qty')) { $('adm-qty').value = q; }
+    if (adm.root.querySelector('.adm-picker')) { adm.root.querySelector('.adm-picker').scrollTop = s; }
+  }
+  else if (act === 'sendcoins') {
+    let amount = Math.floor(Number($('adm-coins').value));
+    if (!amount) { msg('Type a number of coins.'); return; }
+    if (Math.abs(amount) > MAX_COINS) { msg('That is too many coins.'); return; }
+    if (!confirm('Change ' + (adm.detail.user.name || 'this player') + "'s coins by " + amount + '?')) { return; }
+    try { await sendOp({ type: 'coins', amount: amount }); openUser(adm.uid); setTimeout(function () { msg('Queued.', true); }, 600); }
+    catch (err) { msg('Could not queue that. Check the database rules.'); }
+  }
+  else if (act === 'sendcards') {
+    if (!adm.pick) { msg('Tap a card first.'); return; }
+    let n = Math.floor(Number($('adm-qty').value));
+    if (!(n >= 1) || n > 999) { msg('Quantity must be 1 to 999.'); return; }
+    let p = adm.pick;
+    let item = { key: p.key, n: adm.mode === 'give' ? n : -n, rarity: p.rarity, img: p.img || '', name: p.name || '', color: p.color || '' };
+    if (!confirm((adm.mode === 'give' ? 'Give ' : 'Take ') + n + 'x ' + cardLabel(p.key) + ' ' + (adm.mode === 'give' ? 'to ' : 'from ') + (adm.detail.user.name || 'this player') + '?')) { return; }
+    try { await sendOp({ type: 'cards', items: [item] }); openUser(adm.uid); setTimeout(function () { msg('Queued.', true); }, 600); }
+    catch (err) { msg('Could not queue that. Check the database rules.'); }
+  }
+  else if (act === 'reset') {
+    let name = adm.detail.user.name || 'this player';
+    if (!confirm('RESET ' + name + '? This wipes their cards and coins.')) { return; }
+    if (!confirm('Really reset ' + name + '? This cannot be undone.')) { return; }
+    try { await sendOp({ type: 'reset' }); openUser(adm.uid); setTimeout(function () { msg('Queued.', true); }, 600); }
+    catch (err) { msg('Could not queue that. Check the database rules.'); }
+  }
+}
+
+document.addEventListener('change', function (e) {
+  if (e.target && e.target.id === 'adm-rarity' && adm) {
+    adm.rarity = e.target.value;
+    adm.pick = null;
+    drawDetail();
+  }
+});
