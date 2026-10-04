@@ -452,6 +452,7 @@
   .coll-card:hover .coll-sell, .coll-sell:focus { opacity: 1; }
   @media (hover: none) { .coll-sell { opacity: 1; } }
 
+  .ver-label { position: fixed; top: 0; left: 16px; z-index: 1000; font-size: 10px; line-height: 13px; font-weight: 700; color: #8a8478; pointer-events: none; }
   .set-pick { text-align: center; margin: 0 0 10px; font-size: 14px; }
   .view-tabs { display: flex; justify-content: center; gap: 8px; margin: 0 0 20px; }
   .tab { appearance: none; border: 1px solid #d8d3c8; background: #fff; color: #2b2b2b; border-radius: 999px; padding: 8px 20px; font-size: 14px; cursor: pointer; }
@@ -539,6 +540,7 @@
 </head>
 <body>
   <div class="dev-overlay" id="dev-overlay"><div class="dev-box" id="dev-box"></div></div>
+  <div class="ver-label">V1.3</div>
   <button class="sound-btn acct-btn" id="acct-btn">Sign in</button>
   <div class="dev-overlay" id="acct-overlay"><div class="dev-box" id="acct-box"></div></div>
   <button class="sound-btn" id="sound-btn" onclick="toggleSound()">Sound: on</button>
@@ -615,7 +617,7 @@
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=5"></script>
+  <script src="script.js?v=6"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="trade.js"></script>
   <script type="module" src="admin.js"></script>

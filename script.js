@@ -97,18 +97,18 @@ let sortMode = 'price';
 let sortStoreKey = 'pokemonPackSort';
 
 // Only pictures from these sites are accepted when importing a backup
-let allowedImageHosts = ['assets.tcgdex.net', 'images.carddex.dev', 'cardgamer.com', 'pkmncards.com'];
+let allowedImageHosts = ['assets.tcgdex.net', 'images.carddex.dev', 'cardgamer.com', 'pkmncards.com', 'archives.bulbagarden.net'];
 
 // Holo strength per rarity: 0 = none, 1 = maximum. 0.8 and above also get sparkles.
 let holoLevels = {
-  'Energy': 0.5,
+  'Energy': 0,
   'Reverse holo': 0.6,
   'No foil': 0,
-  'Uncommon': 0.4,
+  'Uncommon': 0,
   'Ultra Rare': 0.9,
   'Mega Attack Rare': 1,
   'Mega Hyper Rare': 1,
-  'Common': 0.35,
+  'Common': 0,
   'Pikachu Rare': 0.5,
   'Rare': 0.55,
   'Double rare': 0.65,
@@ -266,7 +266,7 @@ let energies = [
 // Ascended Heroes energy: same colours and names, art from the Mega Evolution Energies set (mee 001-008); a coloured box shows if a picture fails.
 // If a picture is missing the game shows a coloured box instead.
 let ascEnergies = energies.map(function (e, i) {
-  return { name: e.name, color: e.color, image: 'https://pkmncards.com/wp-content/uploads/mee_en_' + String(i + 1).padStart(3, '0') + '_std.png' };
+  return { name: e.name, color: e.color, image: 'https://archives.bulbagarden.net/wiki/Special:FilePath/Basic' + e.name + 'EnergyMEEEnergy' + (i + 1) + '.jpg', alt: 'https://pkmncards.com/wp-content/uploads/mee_en_' + String(i + 1).padStart(3, '0') + '_std.png' };
 });
 
 function energyKey(energy) {
@@ -420,6 +420,9 @@ function holoHtml(rarity) {
   if (level === undefined) {
     level = 0.4;
   }
+  if (!(level > 0)) {
+    return '';
+  }
   let classes = 'holo idle';
   if (level >= 0.8) {
     classes = classes + ' high';
@@ -469,9 +472,17 @@ function retryImage(img) {
       img.src = base + '?retry=' + (tries + 1);
     }, 500);
   } else if (img.dataset.energy) {
-    for (let i = 0; i < energies.length; i++) {
-      if (energies[i].name === img.dataset.energy) {
-        img.outerHTML = energyBox(energies[i], Number(img.dataset.w) || cardW, Number(img.dataset.h) || cardH);
+    let isAsc = /bulbagarden|pkmncards/.test(img.src);
+    let list = isAsc ? ascEnergies : energies;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].name === img.dataset.energy) {
+        if (isAsc && list[i].alt && !img.dataset.usedAlt && img.src.indexOf('pkmncards') === -1) {
+          img.dataset.usedAlt = '1';
+          img.dataset.tries = 0;
+          img.src = list[i].alt;
+          return;
+        }
+        img.outerHTML = energyBox(list[i], Number(img.dataset.w) || cardW, Number(img.dataset.h) || cardH);
       }
     }
   }
