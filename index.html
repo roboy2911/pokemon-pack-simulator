@@ -8,6 +8,7 @@
   body {
     margin: 0;
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -90,7 +91,7 @@
   #pack {
     position: relative;
     margin: 32px 0 8px;
-    touch-action: none;
+    touch-action: pan-y;
     user-select: none;
     -webkit-user-select: none;
     cursor: grab;
@@ -516,6 +517,12 @@
   .site-footer { width: 100%; max-width: 640px; margin: 48px auto 24px; padding: 18px 16px 0; border-top: 1px solid #d9d3c8; text-align: center; font-size: 12px; line-height: 1.6; color: #8a8478; }
   .footer-discord { font-size: 13px; margin-bottom: 10px; color: #5a554c; }
   .site-footer a { color: #5a554c; font-weight: 600; }
+
+  html { -webkit-text-size-adjust: 100%; }
+  body:has(.dev-overlay[style*="flex"]) { overflow: hidden; }
+  .dev-box, .tpicker { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .adm-table { display: block; overflow-x: auto; }
+  button, .tab, .tpick, .coll-sell, select { touch-action: manipulation; }
 </style>
 </head>
 <body>
@@ -583,7 +590,7 @@
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=2"></script>
+  <script src="script.js?v=3"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="trade.js"></script>
   <script type="module" src="admin.js"></script>

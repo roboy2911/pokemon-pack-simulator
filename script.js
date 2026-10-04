@@ -1679,7 +1679,25 @@ function setupSwipe() {
   }
 
   pack.addEventListener('pointerup', endDrag);
-  pack.addEventListener('pointercancel', endDrag);
+  // A cancelled touch (for example the page started scrolling) just puts everything back
+  pack.addEventListener('pointercancel', function () {
+    if (ripping) {
+      ripping = false;
+      let top = document.querySelector('#boosterpack .packtop');
+      if (top) {
+        top.style.transition = 'transform 0.25s';
+        top.style.transform = '';
+      }
+    }
+    if (dragging) {
+      dragging = false;
+      let card = stackCards[topIndex];
+      if (card) {
+        card.style.transition = 'transform 0.25s';
+        card.style.transform = 'translateY(0px) scale(1)';
+      }
+    }
+  });
 }
 
 async function getCard(padded) {
