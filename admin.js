@@ -143,6 +143,9 @@ function fmtTime(t) {
 
 function cardLabel(key) {
   key = String(key || '');
+  let tu = key.match(/\/sm9\/(\d{3})\//);
+  if (tu) { return 'TU #' + Number(tu[1]); }
+  if (key.indexOf('energy-tu-') === 0) { return key.slice(10) + ' Energy'; }
   let a = key.match(/\/me02\.5\/(\d{3})\//);
   if (a) { return 'AH #' + Number(a[1]); }
   if (key.indexOf('energy-asc-') === 0) { return key.slice(11) + ' Energy'; }
@@ -375,8 +378,11 @@ function allCardsFor(rarity) {
     for (let i = 0; i < ascEnergies.length; i++) {
       list.push({ key: 'energy-asc-' + ascEnergies[i].name, rarity: 'Energy', img: ascEnergies[i].image, name: ascEnergies[i].name, color: ascEnergies[i].color, count: 1 });
     }
+    for (let i = 0; i < tuEnergies.length; i++) {
+      list.push({ key: 'energy-tu-' + tuEnergies[i].name, rarity: 'Energy', img: tuEnergies[i].image, name: tuEnergies[i].name, color: tuEnergies[i].color, count: 1 });
+    }
   } else {
-    let urls = (byRarity[rarity] || []).concat(ascByRarity[rarity] || []);
+    let urls = (byRarity[rarity] || []).concat(ascByRarity[rarity] || [], tuByRarity[rarity] || []);
     for (let i = 0; i < urls.length; i++) {
       list.push({ key: urls[i], rarity: rarity, img: urls[i], name: '', color: '', count: 1 });
     }
@@ -420,7 +426,7 @@ function drawDetail() {
   let chips = '';
   let owned = {};
   for (let i = 0; i < keys.length; i++) { owned[cards[keys[i]].rarity] = (owned[cards[keys[i]].rarity] || 0) + 1; }
-  let sets = [['30th', '30th', byRarity], ['asc', 'Ascended Heroes', ascByRarity]];
+  let sets = [['30th', '30th', byRarity], ['asc', 'Ascended Heroes', ascByRarity], ['tu', 'Team Up', tuByRarity]];
   for (let q = 0; q < sets.length; q++) {
     let own = {};
     for (let i = 0; i < keys.length; i++) {

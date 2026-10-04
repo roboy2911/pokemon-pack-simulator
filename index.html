@@ -547,7 +547,7 @@
 </head>
 <body>
   <div class="dev-overlay" id="dev-overlay"><div class="dev-box" id="dev-box"></div></div>
-  <div class="ver-label">V1.3</div>
+  <div class="ver-label">V1.4</div>
   <button class="sound-btn acct-btn" id="acct-btn">Sign in</button>
   <div class="dev-overlay" id="acct-overlay"><div class="dev-box" id="acct-box"></div></div>
   <button class="sound-btn" id="sound-btn" onclick="toggleSound()">Sound: on</button>
@@ -561,6 +561,7 @@
   <div class="set-pick"><label>Set <select id="set-select" class="sort-select" onchange="changeSet(this.value)">
     <option value="30th">30th Celebration</option>
     <option value="asc">Ascended Heroes</option>
+    <option value="tu">Team Up (3000 coins)</option>
   </select></label></div>
   <button class="open-btn" id="open-btn" onclick="openPack()">Open Pack</button>
   <div id="pack"></div>
@@ -600,6 +601,7 @@
           <option value="all">All sets</option>
           <option value="30th">30th Celebration</option>
           <option value="asc">Ascended Heroes</option>
+          <option value="tu">Team Up</option>
         </select>
       </label>
       <label class="sort-label">Sort by
@@ -626,7 +628,7 @@
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=9"></script>
+  <script src="script.js?v=11"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="trade.js"></script>
   <script type="module" src="admin.js"></script>

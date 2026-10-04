@@ -44,7 +44,11 @@ let hitTiers = {
   'RGB Mew': 3,
   'Ultra Rare': 2,
   'Mega Attack Rare': 3,
-  'Mega Hyper Rare': 3
+  'Mega Hyper Rare': 3,
+  'Holo GX': 1,
+  'Prism Star': 2,
+  'Rainbow Rare': 3,
+  'Secret Rare': 3
 };
 
 let stackCards = [];
@@ -58,7 +62,7 @@ let ripDirection = 1;
 let packId = 0;
 
 // Collection
-let rarityOrder = ['RGB Mew', 'Futuristic Rare', 'Mega Hyper Rare', 'Mega Attack Rare', 'Special illustration rare', 'Ultra Rare', 'Illustration rare', 'Classic Collection', 'Double rare', 'Rare', 'Pikachu Rare', 'Uncommon', 'Common', 'Energy'];
+let rarityOrder = ['RGB Mew', 'Futuristic Rare', 'Secret Rare', 'Rainbow Rare', 'Mega Hyper Rare', 'Mega Attack Rare', 'Special illustration rare', 'Ultra Rare', 'Holo GX', 'Illustration rare', 'Classic Collection', 'Prism Star', 'Double rare', 'Rare Holo', 'Rare', 'Pikachu Rare', 'Uncommon', 'Common', 'Energy'];
 let storeKey = 'pokemonPackCollection';
 
 // Coins and shop
@@ -104,6 +108,11 @@ let holoLevels = {
   'Energy': 0,
   'Reverse holo': 0.6,
   'No foil': 0,
+  'Rare Holo': 0.7,
+  'Holo GX': 0.85,
+  'Prism Star': 0.8,
+  'Rainbow Rare': 1,
+  'Secret Rare': 1,
   'Uncommon': 0,
   'Ultra Rare': 0.9,
   'Mega Attack Rare': 1,
@@ -203,6 +212,48 @@ function loadAscRates() {
 }
 loadAscRates();
 
+// Team Up (Sun & Moon, TCGdex id sm9): the premium pack
+let tuByRarity = {};
+let tuLoaded = false;
+let tuLoading = false;
+// 11 cards: 1 energy, 5 commons, 3 uncommons, 1 reverse holo, 1 rare slot
+let tuDefaultDefs = [
+  { name: 'Commons (x5)', n: 5, rates: { 'Common': 100 } },
+  { name: 'Uncommons (x3)', n: 3, rates: { 'Uncommon': 100 } },
+  { name: 'Reverse holo slot', n: 1, rev: true, rates: { 'Common': 40, 'Uncommon': 30, 'Rare': 25, 'Rare Holo': 5 } },
+  { name: 'Rare slot', n: 1, rates: { 'Rare': 61.5, 'Rare Holo': 16.7, 'Holo GX': 9.29, 'Prism Star': 5.96, 'Ultra Rare': 4.82, 'Rainbow Rare': 1.03, 'Secret Rare': 0.69 } }
+];
+let tuDefaultSlots = tuDefaultDefs.map(function (d) { return d.rates; });
+let tuSlots = JSON.parse(JSON.stringify(tuDefaultSlots));
+
+function loadTuRates() {
+  try {
+    let saved = JSON.parse(localStorage.getItem('customRatesTu'));
+    if (Array.isArray(saved) && saved.length === tuDefaultSlots.length) {
+      let ok = true;
+      for (let i = 0; i < saved.length; i++) {
+        for (let r in tuDefaultSlots[i]) {
+          if (!saved[i] || typeof saved[i][r] !== 'number' || !(saved[i][r] >= 0)) { ok = false; }
+        }
+      }
+      if (ok) {
+        tuSlots = saved.map(function (s, i) {
+          let o = {};
+          for (let r in tuDefaultSlots[i]) { o[r] = s[r]; }
+          return o;
+        });
+      }
+    }
+  } catch (e) {}
+}
+loadTuRates();
+
+// Quick-sell values in Team Up are much bigger, because a Team Up pack costs 3000 coins
+let tuSellValues = {
+  'Energy': 5, 'Common': 20, 'Uncommon': 30, 'Rare': 80, 'Rare Holo': 300, 'Holo GX': 5000,
+  'Prism Star': 2500, 'Ultra Rare': 15000, 'Rainbow Rare': 40000, 'Secret Rare': 70000
+};
+
 let SETS = {
   '30th': {
     id: '30th',
@@ -218,7 +269,21 @@ let SETS = {
     cost: 100,
     packImage: 'https://tse2.mm.bing.net/th/id/OIP.jMhsGp9APOaSzVZVII2dRAAAAA?r=0&rs=1&pid=ImgDetMain&o=7&rm=3',
     packLabel: 'Ascended<br>Heroes',
-    rarityKey: 'customRatesAsc2'
+    rarityKey: 'customRatesAsc2',
+    tcg: 'me02.5', imgPath: 'me/me02.5', count: 295, mainCount: 217,
+    imgRe: /\/me02\.5\/(\d{3})\//, cacheKey: 'pokemonAscCards_v1', energyPrefix: 'energy-asc-',
+    pageBonus: null, rarityBonus: null
+  },
+  'tu': {
+    id: 'tu',
+    name: 'Team Up',
+    cost: 3000,
+    packImage: 'https://i5.walmartimages.com/seo/Pokemon-Cards-Sun-Moon-Team-Up-Booster-Pack-10-Cards_a0cc2c6c-e9f1-4a5d-a0c0-3a7ee7c327d3.e69bb204fb81355427dcd3fe180620ab.jpeg',
+    packLabel: 'Team<br>Up',
+    rarityKey: 'customRatesTu',
+    tcg: 'sm9', imgPath: 'sm/sm9', count: 196, mainCount: 181,
+    imgRe: /\/sm9\/(\d{3})\//, cacheKey: 'pokemonTuCards_v1', energyPrefix: 'energy-tu-',
+    pageBonus: null, rarityBonus: null
   }
 };
 
@@ -226,20 +291,36 @@ let SETS = {
 function cardSet(key) {
   key = String(key || '');
   if (key.indexOf('/me02.5/') !== -1 || key.indexOf('energy-asc-') === 0) { return 'asc'; }
+  if (key.indexOf('/sm9/') !== -1 || key.indexOf('energy-tu-') === 0) { return 'tu'; }
   return '30th';
 }
 
 function tableFor(setId) {
-  return setId === 'asc' ? ascByRarity : byRarity;
+  if (setId === 'asc') { return ascByRarity; }
+  if (setId === 'tu') { return tuByRarity; }
+  return byRarity;
 }
 
 function setReady(setId) {
-  return setId === 'asc' ? ascLoaded : !!byRarity['Common'];
+  if (setId === 'asc') { return ascLoaded; }
+  if (setId === 'tu') { return tuLoaded; }
+  return !!byRarity['Common'];
 }
 
 // Turns whatever TCGdex calls a rarity into the names this game uses
-function normRarity(text) {
+function normRarity(text, setId) {
   let t = String(text || '').toLowerCase();
+  if (setId === 'tu') {
+    if (t.indexOf('secret') !== -1) { return 'Secret Rare'; }
+    if (t.indexOf('rainbow') !== -1) { return 'Rainbow Rare'; }
+    if (t.indexOf('prism') !== -1) { return 'Prism Star'; }
+    if (t.indexOf('ultra') !== -1) { return 'Ultra Rare'; }
+    if (t.indexOf('gx') !== -1) { return 'Holo GX'; }
+    if (t.indexOf('holo') !== -1) { return 'Rare Holo'; }
+    if (t.indexOf('uncommon') !== -1) { return 'Uncommon'; }
+    if (t.indexOf('common') !== -1) { return 'Common'; }
+    return 'Rare';
+  }
   if (t.indexOf('hyper') !== -1) { return 'Mega Hyper Rare'; }
   if (t.indexOf('attack') !== -1) { return 'Mega Attack Rare'; }
   if (t.indexOf('special illustration') !== -1) { return 'Special illustration rare'; }
@@ -269,8 +350,25 @@ let ascEnergies = energies.map(function (e, i) {
   return { name: e.name, color: e.color, image: 'https://pkmncards.com/wp-content/uploads/mee_en_' + String(i + 1).padStart(3, '0') + '_std.png' };
 });
 
+// Team Up energies: the Sun & Moon Energy cards (pkmncards.com); a coloured box shows if a picture fails
+let tuEnergies = energies.map(function (e, i) {
+  return { name: e.name, color: e.color, image: 'https://pkmncards.com/wp-content/uploads/en_US-SM_Energy-' + String(i + 1).padStart(3, '0') + '-' + e.name.toLowerCase() + '_energy-1.jpg' };
+});
+
+function energyList(setId) {
+  if (setId === 'asc') { return ascEnergies; }
+  if (setId === 'tu') { return tuEnergies; }
+  return energies;
+}
+
+function energyPrefix(setId) {
+  if (setId === 'asc') { return 'energy-asc-'; }
+  if (setId === 'tu') { return 'energy-tu-'; }
+  return 'energy-';
+}
+
 function energyKey(energy) {
-  return (curSet === 'asc' ? 'energy-asc-' : 'energy-') + energy.name;
+  return energyPrefix(curSet) + energy.name;
 }
 
 function esc(text) {
@@ -401,6 +499,10 @@ function toggleSound() {
 // ---------- Cards ----------
 
 function loadPackImage() {
+  if (!packImageUrl) {
+    packRatio = null;
+    return;
+  }
   let img = new Image();
   img.onload = function () {
     packRatio = img.naturalHeight / img.naturalWidth;
@@ -562,6 +664,8 @@ function priceIdFromUrl(url) {
   let id = null;
   let asc = url.match(/\/me02\.5\/(\d{3})\//);
   if (asc) { return 'me02.5-' + asc[1]; }
+  let tu = url.match(/\/sm9\/(\d{3})\//);
+  if (tu) { return 'sm9-' + tu[1]; }
   let main = url.match(/\/30th\/(\d{3})\//);
   if (main) {
     id = '30c-' + main[1];
@@ -596,7 +700,7 @@ function savePriceCache() {
 }
 
 async function fetchPrice(id) {
-  if (id.indexOf('me02.5-') === 0) {
+  if (id.indexOf('me02.5-') === 0 || id.indexOf('sm9-') === 0) {
     try {
       let res = await fetch('https://api.tcgdex.net/v2/en/cards/' + id);
       if (!res.ok) { return null; }
@@ -884,7 +988,7 @@ let collSetFilter = 'all';
 let collSetKey = 'pokemonPackCollSet';
 
 function changeCollSet(value) {
-  collSetFilter = (value === '30th' || value === 'asc') ? value : 'all';
+  collSetFilter = (value === '30th' || value === 'asc' || value === 'tu') ? value : 'all';
   try { localStorage.setItem(collSetKey, collSetFilter); } catch (e) {}
   renderCollection();
 }
@@ -938,7 +1042,7 @@ function renderCollection() {
     if (id) {
       price = '<div class="coll-price" data-price-id="' + esc(id) + '">' + esc(priceText(id)) + '</div>';
     }
-    let sell = '<button class="coll-sell" data-sell="' + esc(keys[i]) + '">Sell +' + sellValue(card.rarity) + '</button>';
+    let sell = '<button class="coll-sell" data-sell="' + esc(keys[i]) + '">Sell +' + sellValue(card.rarity, keys[i]) + '</button>';
     let rank = rarityOrder.indexOf(card.rarity);
     if (rank === -1) {
       rank = 99;
@@ -982,8 +1086,8 @@ function setKeys(setId) {
   for (let r in table) {
     for (let i = 0; i < table[r].length; i++) { out[table[r][i]] = true; }
   }
-  let list = setId === 'asc' ? ascEnergies : energies;
-  for (let i = 0; i < list.length; i++) { out[(setId === 'asc' ? 'energy-asc-' : 'energy-') + list[i].name] = true; }
+  let list = energyList(setId);
+  for (let i = 0; i < list.length; i++) { out[energyPrefix(setId) + list[i].name] = true; }
   return out;
 }
 
@@ -1027,6 +1131,13 @@ function leaderStats() {
     for (let i = 0; i < keys.length; i++) { if (all[keys[i]]) { n++; } }
     out.oAsc = n;
     out.tAsc = Object.keys(all).length;
+  }
+  if (tuLoaded) {
+    let all = setKeys('tu');
+    let n = 0;
+    for (let i = 0; i < keys.length; i++) { if (all[keys[i]]) { n++; } }
+    out.oTu = n;
+    out.tTu = Object.keys(all).length;
   }
   return out;
 }
@@ -1124,7 +1235,10 @@ function addCoins(amount) {
   updateShop();
 }
 
-function sellValue(rarity) {
+function sellValue(rarity, key) {
+  if (key && cardSet(key) === 'tu') {
+    return tuSellValues[rarity] || sellValues[rarity] || 1;
+  }
   return sellValues[rarity] || 1;
 }
 
@@ -1186,7 +1300,7 @@ function sellDuplicate(key) {
   if (!card || card.count < 1) {
     return;
   }
-  let value = sellValue(card.rarity);
+  let value = sellValue(card.rarity, key);
   if (card.count === 1) {
     if (!confirm('This is your last copy. Sell it for ' + value + ' coins? It will leave your collection.')) {
       return;
@@ -1210,7 +1324,7 @@ function sellAllDuplicates() {
     let card = data.cards[key];
     if (card.count > 1) {
       let extra = card.count - 1;
-      total = total + extra * sellValue(card.rarity);
+      total = total + extra * sellValue(card.rarity, key);
       sold = sold + extra;
       card.count = 1;
     }
@@ -1243,17 +1357,19 @@ function binderPages(setId) {
   setId = setId || curSet;
   let sections = [];
 
-  if (setId === 'asc') {
+  if (setId === 'asc' || setId === 'tu') {
+    let cfg = SETS[setId];
+    let table = tableFor(setId);
     let main = [];
     let secret = [];
-    for (let rarity in ascByRarity) {
-      for (let i = 0; i < ascByRarity[rarity].length; i++) {
-        let url = ascByRarity[rarity][i];
-        let m = url.match(/\/me02\.5\/(\d{3})\//);
+    for (let rarity in table) {
+      for (let i = 0; i < table[rarity].length; i++) {
+        let url = table[rarity][i];
+        let m = url.match(cfg.imgRe);
         if (!m) { continue; }
         let n = Number(m[1]);
         let slot = { key: url, rarity: rarity, label: String(n), num: n };
-        if (n <= ascMainCount) { main.push(slot); } else { secret.push(slot); }
+        if (n <= cfg.mainCount) { main.push(slot); } else { secret.push(slot); }
       }
     }
     main.sort(function (a, b) { return a.num - b.num; });
@@ -1261,8 +1377,9 @@ function binderPages(setId) {
     sections.push({ title: 'Main set', slots: main });
     sections.push({ title: 'Secret rares', slots: secret });
     let aen = [];
-    for (let i = 0; i < ascEnergies.length; i++) {
-      aen.push({ key: 'energy-asc-' + ascEnergies[i].name, rarity: 'Energy', label: ascEnergies[i].name });
+    let elist = energyList(setId);
+    for (let i = 0; i < elist.length; i++) {
+      aen.push({ key: cfg.energyPrefix + elist[i].name, rarity: 'Energy', label: elist[i].name });
     }
     sections.push({ title: 'Energies', slots: aen });
   } else {
@@ -1465,6 +1582,20 @@ let ascRarityBonus = {
   'Mega Attack Rare': 5000,
   'Mega Hyper Rare': 8000
 };
+// Team Up rewards (a Team Up pack costs 3000 coins, so these are large)
+let tuPageBonus = { 'Main set': 1500, 'Secret rares': 20000, 'Energies': 500 };
+let tuRarityBonus = {
+  'Energy': 500,
+  'Common': 3000,
+  'Uncommon': 3000,
+  'Rare': 3000,
+  'Rare Holo': 6000,
+  'Holo GX': 20000,
+  'Prism Star': 15000,
+  'Ultra Rare': 40000,
+  'Rainbow Rare': 60000,
+  'Secret Rare': 80000
+};
 let rewardNote = '';   // shown after a pack finishes
 
 // Checks every reward and pays out any that were just earned. Each is paid once per account.
@@ -1488,13 +1619,13 @@ function checkRewards() {
   }
 
   function setRewards(setId) {
-    let asc = setId === 'asc';
+    let other = setId !== '30th';
     let table = tableFor(setId);
-    let prefix = asc ? 'reward:asc:' : 'reward:';
-    let pageBonus = asc ? ascPageBonus : rewardPageBonus;
-    let rarityBonus = asc ? ascRarityBonus : rewardRarityBonus;
-    let tag = asc ? 'Ascended Heroes: ' : '';
-    let list = asc ? ascEnergies : energies;
+    let prefix = other ? 'reward:' + setId + ':' : 'reward:';
+    let pageBonus = setId === 'asc' ? ascPageBonus : (setId === 'tu' ? tuPageBonus : rewardPageBonus);
+    let rarityBonus = setId === 'asc' ? ascRarityBonus : (setId === 'tu' ? tuRarityBonus : rewardRarityBonus);
+    let tag = other ? SETS[setId].name + ': ' : '';
+    let list = energyList(setId);
 
     let pages = binderPages(setId);
     for (let i = 0; i < pages.length; i++) {
@@ -1512,7 +1643,7 @@ function checkRewards() {
     for (let r in rarityBonus) {
       let keys = [];
       if (r === 'Energy') {
-        for (let i = 0; i < list.length; i++) { keys.push((asc ? 'energy-asc-' : 'energy-') + list[i].name); }
+        for (let i = 0; i < list.length; i++) { keys.push(energyPrefix(setId) + list[i].name); }
       } else if (table[r]) {
         keys = table[r];
       }
@@ -1527,6 +1658,7 @@ function checkRewards() {
 
   setRewards('30th');
   if (ascLoaded) { setRewards('asc'); }
+  if (tuLoaded) { setRewards('tu'); }
 
   if (total > 0) {
     coins = coins + total;
@@ -1856,11 +1988,44 @@ function buildAscItems() {
   return items;
 }
 
+// Builds the cards of one Team Up pack (11 cards)
+function buildTuItems() {
+  let energy = pickFrom(tuEnergies);
+  let items = [{
+    html: energyHtml(energy),
+    rarity: 'Energy',
+    key: 'energy-tu-' + energy.name,
+    img: energy.image,
+    name: energy.name,
+    color: energy.color,
+    cardId: null,
+    holo: 'No foil'
+  }];
+  let used = {};
+  for (let d = 0; d < tuDefaultDefs.length; d++) {
+    let def = tuDefaultDefs[d];
+    for (let k = 0; k < def.n; k++) {
+      let rarity = pickRarity(tuSlots[d], tuByRarity);
+      if (!rarity) { continue; }
+      let url = pickUnique(tuByRarity, rarity, used);
+      let item = { html: cardImage(url), rarity: rarity, key: url, img: url, cardId: priceIdFromUrl(url) };
+      if (def.rev) {
+        item.holo = 'Reverse holo';
+      } else if (rarity === 'Common' || rarity === 'Uncommon' || rarity === 'Rare') {
+        item.holo = 'No foil';
+      }
+      items.push(item);
+    }
+  }
+  godNow = false;
+  return items;
+}
+
 function openPack() {
   getAudio();
   if (!setReady(curSet)) {
     document.getElementById('info').innerText = 'Still loading, try again in a second.';
-    if (curSet === 'asc') { loadAsc(); }
+    if (curSet !== '30th') { loadTG(curSet); }
     return;
   }
   if (packSealed) {
@@ -1878,6 +2043,8 @@ function openPack() {
   godNow = false;
   if (curSet === 'asc') {
     items = buildAscItems();
+  } else if (curSet === 'tu') {
+    items = buildTuItems();
   } else {
     let energy = pickFrom(energies);
     items = [{
@@ -2116,9 +2283,14 @@ async function loadCards() {
   checkRewards();
   queueOwnedPrices();
   loadAsc();
+  let owned = loadCollection().cards;
+  for (let k in owned) {
+    if (cardSet(k) === 'tu') { loadTG('tu'); break; }
+  }
+  if (curSet === 'tu') { loadTG('tu'); }
 }
 
-// ---------- Ascended Heroes data ----------
+// ---------- Card data for TCGdex sets (Ascended Heroes, Team Up) ----------
 
 // TCGdex gives prices in euros inside each card
 function ascEur(card) {
@@ -2131,9 +2303,9 @@ function ascEur(card) {
   return v;
 }
 
-async function getAscCard(padded) {
+async function getTgCard(tcg, padded) {
   try {
-    let res = await fetch('https://api.tcgdex.net/v2/en/cards/me02.5-' + padded);
+    let res = await fetch('https://api.tcgdex.net/v2/en/cards/' + tcg + '-' + padded);
     if (!res.ok) { return null; }
     return await res.json();
   } catch (e) {
@@ -2141,13 +2313,15 @@ async function getAscCard(padded) {
   }
 }
 
-async function loadAsc() {
-  if (ascLoaded || ascLoading) { return; }
-  ascLoading = true;
+async function loadTG(setId) {
+  let cfg = SETS[setId];
+  if (!cfg || !cfg.tcg) { return; }
+  if (setReady(setId) || cfg.loading) { return; }
+  cfg.loading = true;
   let info = {};
   let stamp = Date.now();
   try {
-    let cache = JSON.parse(localStorage.getItem(ascCacheKey));
+    let cache = JSON.parse(localStorage.getItem(cfg.cacheKey));
     if (cache && cache.cards && Date.now() - cache.t < ascCacheMaxAge) {
       info = cache.cards;
       stamp = cache.t;
@@ -2156,19 +2330,19 @@ async function loadAsc() {
 
   for (let pass = 0; pass < 3; pass++) {
     let missing = [];
-    for (let n = 1; n <= ascCount; n++) {
+    for (let n = 1; n <= cfg.count; n++) {
       let padded = String(n).padStart(3, '0');
       if (!info[padded]) { missing.push(padded); }
     }
     if (missing.length === 0) { break; }
-    if (curSet === 'asc') { document.getElementById('info').innerText = 'Loading Ascended Heroes... ' + (ascCount - missing.length) + '/' + ascCount; }
+    if (curSet === setId) { document.getElementById('info').innerText = 'Loading ' + cfg.name + '... ' + (cfg.count - missing.length) + '/' + cfg.count; }
     for (let i = 0; i < missing.length; i += 40) {
       let batch = missing.slice(i, i + 40);
-      let results = await Promise.all(batch.map(getAscCard));
+      let results = await Promise.all(batch.map(function (p) { return getTgCard(cfg.tcg, p); }));
       for (let j = 0; j < batch.length; j++) {
         let card = results[j];
         if (card && card.rarity) {
-          info[batch[j]] = { r: normRarity(card.rarity), e: ascEur(card) };
+          info[batch[j]] = { r: normRarity(card.rarity, setId), e: ascEur(card) };
         }
       }
     }
@@ -2177,33 +2351,35 @@ async function loadAsc() {
 
   let have = Object.keys(info).length;
   if (have === 0) {
-    ascLoading = false;
-    if (curSet === 'asc') { document.getElementById('info').innerText = 'Could not load Ascended Heroes. Check your connection and reload.'; }
+    cfg.loading = false;
+    if (curSet === setId) { document.getElementById('info').innerText = 'Could not load ' + cfg.name + '. Check your connection and reload.'; }
     return;
   }
-  if (have >= ascCount) {
-    try { localStorage.setItem(ascCacheKey, JSON.stringify({ t: stamp, cards: info })); } catch (e) {}
+  // Some sets have a few numbers with no card; accept the set once nearly everything is in
+  if (have >= cfg.count - 3) {
+    try { localStorage.setItem(cfg.cacheKey, JSON.stringify({ t: stamp, cards: info })); } catch (e) {}
   }
 
-  ascByRarity = {};
+  let table = {};
   let urls = [];
-  for (let n = 1; n <= ascCount; n++) {
+  for (let n = 1; n <= cfg.count; n++) {
     let padded = String(n).padStart(3, '0');
     let c = info[padded];
     if (!c) { continue; }
-    let url = 'https://assets.tcgdex.net/en/me/me02.5/' + padded + '/low.webp';
-    if (!ascByRarity[c.r]) { ascByRarity[c.r] = []; }
-    ascByRarity[c.r].push(url);
+    let url = 'https://assets.tcgdex.net/en/' + cfg.imgPath + '/' + padded + '/low.webp';
+    if (!table[c.r]) { table[c.r] = []; }
+    table[c.r].push(url);
     urls.push(url);
     if (typeof c.e === 'number') {
-      let id = 'me02.5-' + padded;
+      let id = cfg.tcg + '-' + padded;
       if (!priceCache[id] || stamp > priceCache[id].t) { priceCache[id] = { eur: c.e, t: stamp }; }
     }
   }
   savePriceCache();
-  ascLoaded = true;
-  ascLoading = false;
-  if (curSet === 'asc') {
+  if (setId === 'asc') { ascByRarity = table; ascLoaded = true; }
+  if (setId === 'tu') { tuByRarity = table; tuLoaded = true; }
+  cfg.loading = false;
+  if (curSet === setId) {
     document.getElementById('info').innerText = 'Ready! Click Open Pack.';
     preloadAll(urls);
   }
@@ -2211,6 +2387,8 @@ async function loadAsc() {
   checkRewards();
   queueOwnedPrices();
 }
+
+function loadAsc() { return loadTG('asc'); }
 
 // ---------- Choosing a set ----------
 
@@ -2233,11 +2411,12 @@ function changeSet(value) {
   curSet = value;
   try { localStorage.setItem(setStoreKey, curSet); } catch (e) {}
   applySet();
-  if (curSet === 'asc' && !ascLoaded) {
-    loadAsc();
-  } else if (curSet === 'asc') {
+  if (curSet !== '30th' && !setReady(curSet)) {
+    loadTG(curSet);
+  } else if (curSet !== '30th') {
     let urls = [];
-    for (let r in ascByRarity) { urls = urls.concat(ascByRarity[r]); }
+    let table = tableFor(curSet);
+    for (let r in table) { urls = urls.concat(table[r]); }
     preloadAll(urls);
   }
   if (!packSealed) {
@@ -2251,7 +2430,7 @@ function loadSetChoice() {
     let saved = localStorage.getItem(setStoreKey);
     if (SETS[saved]) { curSet = saved; }
     let f = localStorage.getItem(collSetKey);
-    if (f === '30th' || f === 'asc') { collSetFilter = f; }
+    if (f === '30th' || f === 'asc' || f === 'tu') { collSetFilter = f; }
   } catch (e) {}
   let fs = document.getElementById('coll-set');
   if (fs) { fs.value = collSetFilter; }
@@ -2294,13 +2473,14 @@ async function checkPassword(text) {
 
 let devSet = '30th';
 
-function devSlotsFor(setId) { return setId === 'asc' ? ascSlots : slots; }
-function devDefaultsFor(setId) { return setId === 'asc' ? ascDefaultSlots : defaultSlots; }
+function devSlotsFor(setId) { return setId === 'asc' ? ascSlots : (setId === 'tu' ? tuSlots : slots); }
+function devDefaultsFor(setId) { return setId === 'asc' ? ascDefaultSlots : (setId === 'tu' ? tuDefaultSlots : defaultSlots); }
 
 function saveRates() {
   try {
     localStorage.setItem('customRates', JSON.stringify(slots));
     localStorage.setItem('customRatesAsc2', JSON.stringify(ascSlots));
+    localStorage.setItem('customRatesTu', JSON.stringify(tuSlots));
   } catch (e) {}
 }
 
@@ -2396,9 +2576,10 @@ function showDevPanel() {
   let defaults = devDefaultsFor(devSet);
   let html = devTabs('rates') + '<h3>Pull rates</h3><div class="dev-note">Changes apply to the next pack and are saved in this browser only.</div>' +
     '<div class="dev-tabs"><button class="dev-tab' + (devSet === '30th' ? ' on' : '') + '" id="dev-set-30th">30th Celebration</button>' +
-    '<button class="dev-tab' + (devSet === 'asc' ? ' on' : '') + '" id="dev-set-asc">Ascended Heroes</button></div>';
+    '<button class="dev-tab' + (devSet === 'asc' ? ' on' : '') + '" id="dev-set-asc">Ascended Heroes</button>' +
+    '<button class="dev-tab' + (devSet === 'tu' ? ' on' : '') + '" id="dev-set-tu">Team Up</button></div>';
   for (let i = 0; i < list.length; i++) {
-    let title = devSet === 'asc' ? ascDefaultDefs[i].name : 'Slot ' + (i + 1);
+    let title = devSet === 'asc' ? ascDefaultDefs[i].name : (devSet === 'tu' ? tuDefaultDefs[i].name : 'Slot ' + (i + 1));
     html += '<div class="dev-slot"><div class="dev-slot-title">' + esc(title) + '</div>';
     for (let r in defaults[i]) {
       html += '<div class="dev-row">' +
@@ -2417,6 +2598,7 @@ function showDevPanel() {
   wireDevTabs();
   document.getElementById('dev-set-30th').onclick = function () { devSet = '30th'; showDevPanel(); };
   document.getElementById('dev-set-asc').onclick = function () { devSet = 'asc'; showDevPanel(); };
+  document.getElementById('dev-set-tu').onclick = function () { devSet = 'tu'; showDevPanel(); };
 
   function refreshLabels() {
     box.querySelectorAll('.dev-eff').forEach(function (el) {
@@ -2441,7 +2623,10 @@ function showDevPanel() {
     el.oninput = function () { setValue(el, el.value); };
   });
   document.getElementById('dev-reset').onclick = function () {
-    if (devSet === 'asc') {
+    if (devSet === 'tu') {
+      tuSlots = JSON.parse(JSON.stringify(tuDefaultSlots));
+      try { localStorage.removeItem('customRatesTu'); } catch (e) {}
+    } else if (devSet === 'asc') {
       ascSlots = JSON.parse(JSON.stringify(ascDefaultSlots));
       try { localStorage.removeItem('customRatesAsc2'); } catch (e) {}
     } else {

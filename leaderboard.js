@@ -26,6 +26,7 @@ function score(r) {
   if (ui.cat === 'value') { return num(r.value); }
   if (ui.cat === 'c30') { return pct(r.o30, r.t30); }
   if (ui.cat === 'casc') { return pct(r.oAsc, r.tAsc); }
+  if (ui.cat === 'ctu') { return pct(r.oTu, r.tTu); }
   if (ui.cat === 'best') { return r.best && num(r.best.price) !== null ? r.best.price : null; }
   return null;
 }
@@ -36,6 +37,7 @@ function show(r) {
   if (ui.cat === 'value') { return 'A$' + s.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   if (ui.cat === 'c30') { return s.toFixed(1) + '% (' + r.o30 + '/' + r.t30 + ')'; }
   if (ui.cat === 'casc') { return s.toFixed(1) + '% (' + r.oAsc + '/' + r.tAsc + ')'; }
+  if (ui.cat === 'ctu') { return s.toFixed(1) + '% (' + r.oTu + '/' + r.tTu + ')'; }
   return 'A$' + s.toFixed(2);
 }
 
@@ -56,7 +58,7 @@ function draw() {
     root.innerHTML = '<div class="coll-empty">Sign in to see the leaderboard.</div>';
     return;
   }
-  let cats = [['packs', 'Packs opened'], ['value', 'Collection value'], ['c30', '30th Celebration completion'], ['casc', 'Ascended Heroes completion'], ['best', 'Rarest pull (most valuable card)']];
+  let cats = [['packs', 'Packs opened'], ['value', 'Collection value'], ['c30', '30th Celebration completion'], ['casc', 'Ascended Heroes completion'], ['ctu', 'Team Up completion'], ['best', 'Rarest pull (most valuable card)']];
   let opts = '';
   for (let i = 0; i < cats.length; i++) {
     opts += '<option value="' + cats[i][0] + '"' + (ui.cat === cats[i][0] ? ' selected' : '') + '>' + cats[i][1] + '</option>';

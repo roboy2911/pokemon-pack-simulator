@@ -76,6 +76,9 @@ function timeLeft(l) {
 
 function label(key) {
   key = String(key || '');
+  let tu = key.match(/\/sm9\/(\d{3})\//);
+  if (tu) { return 'TU #' + Number(tu[1]); }
+  if (key.indexOf('energy-tu-') === 0) { return key.slice(10) + ' Energy'; }
   let a = key.match(/\/me02\.5\/(\d{3})\//);
   if (a) { return 'AH #' + Number(a[1]); }
   if (key.indexOf('energy-asc-') === 0) { return key.slice(11) + ' Energy'; }
@@ -241,7 +244,7 @@ function drawSell() {
     let c = cards[ui.pick];
     let cheap = cheapestFor(ui.pick);
     hint = '<div class="tlabel">Selected: ' + esc(label(ui.pick)) + ' (' + esc(c.rarity) + '), you own ' + c.count +
-      '. Quick-sell value: ' + sellValue(c.rarity) + ' coins.' + (cheap ? ' Cheapest listed now: ' + cheap.toLocaleString() + ' coins.' : '') + '</div>';
+      '. Quick-sell value: ' + sellValue(c.rarity, ui.pick) + ' coins.' + (cheap ? ' Cheapest listed now: ' + cheap.toLocaleString() + ' coins.' : '') + '</div>';
   } else {
     hint = '<div class="tlabel">Tap a card to select it.</div>';
   }
