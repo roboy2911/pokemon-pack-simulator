@@ -266,7 +266,7 @@ let energies = [
 // Ascended Heroes energy: same colours and names, art from the Mega Evolution Energies set (mee 001-008); a coloured box shows if a picture fails.
 // If a picture is missing the game shows a coloured box instead.
 let ascEnergies = energies.map(function (e, i) {
-  return { name: e.name, color: e.color, image: 'https://archives.bulbagarden.net/wiki/Special:FilePath/Basic' + e.name + 'EnergyMEEEnergy' + (i + 1) + '.jpg', alt: 'https://pkmncards.com/wp-content/uploads/mee_en_' + String(i + 1).padStart(3, '0') + '_std.png' };
+  return { name: e.name, color: e.color, image: 'https://pkmncards.com/wp-content/uploads/mee_en_' + String(i + 1).padStart(3, '0') + '_std.png' };
 });
 
 function energyKey(energy) {
