@@ -41,7 +41,10 @@ let hitTiers = {
   'Classic Collection': 2,
   'Special illustration rare': 3,
   'Futuristic Rare': 3,
-  'RGB Mew': 3
+  'RGB Mew': 3,
+  'Ultra Rare': 2,
+  'Mega Attack Rare': 3,
+  'Mega Hyper Rare': 3
 };
 
 let stackCards = [];
@@ -55,7 +58,7 @@ let ripDirection = 1;
 let packId = 0;
 
 // Collection
-let rarityOrder = ['RGB Mew', 'Futuristic Rare', 'Special illustration rare', 'Illustration rare', 'Classic Collection', 'Double rare', 'Rare', 'Pikachu Rare', 'Common', 'Energy'];
+let rarityOrder = ['RGB Mew', 'Futuristic Rare', 'Mega Hyper Rare', 'Mega Attack Rare', 'Special illustration rare', 'Ultra Rare', 'Illustration rare', 'Classic Collection', 'Double rare', 'Rare', 'Pikachu Rare', 'Uncommon', 'Common', 'Energy'];
 let storeKey = 'pokemonPackCollection';
 
 // Coins and shop
@@ -77,7 +80,11 @@ let settledStoreKey = 'pokemonPackSettled';
 let sellValues = {
   'Energy': 2,
   'Common': 5,
+  'Uncommon': 7,
   'Rare': 10,
+  'Ultra Rare': 150,
+  'Mega Attack Rare': 600,
+  'Mega Hyper Rare': 5000,
   'Pikachu Rare': 15,
   'Classic Collection': 200,
   'Illustration rare': 100,
@@ -95,6 +102,11 @@ let allowedImageHosts = ['assets.tcgdex.net', 'images.carddex.dev', 'cardgamer.c
 // Holo strength per rarity: 0 = none, 1 = maximum. 0.8 and above also get sparkles.
 let holoLevels = {
   'Energy': 0.5,
+  'Reverse holo': 0.6,
+  'Uncommon': 0.4,
+  'Ultra Rare': 0.9,
+  'Mega Attack Rare': 1,
+  'Mega Hyper Rare': 1,
   'Common': 0.35,
   'Pikachu Rare': 0.5,
   'Rare': 0.55,
@@ -141,6 +153,103 @@ function loadRates() {
 }
 loadRates();
 
+// ---------- Sets ----------
+// Everything that differs between sets lives here. The 30th Celebration code below is unchanged;
+// Ascended Heroes (TCGdex id me02.5) is added next to it.
+let curSet = '30th';
+let setStoreKey = 'pokemonPackSet';
+let ascByRarity = {};
+let ascLoaded = false;
+let ascLoading = false;
+let ascCount = 295;
+let ascMainCount = 217;      // cards 001-217 are the main set, 218-295 are the secret rares
+let ascCacheKey = 'pokemonAscCards_v1';
+let ascCacheMaxAge = 24 * 60 * 60 * 1000;
+let godNow = false;          // true while the pack on screen is a god pack
+
+// Ascended Heroes pack: 1 energy + 9 cards. Each def is one kind of slot, n = how many of them.
+let ascDefaultDefs = [
+  { name: 'Commons (x3)', n: 3, rates: { 'Common': 100 } },
+  { name: 'Uncommons (x3)', n: 3, rates: { 'Uncommon': 100 } },
+  { name: 'Reverse holo slot', n: 1, rev: true, rates: { 'Common': 45, 'Uncommon': 42, 'Rare': 13 } },
+  { name: 'Reverse holo / IR / SIR slot', n: 1, revUnless: ['Illustration rare', 'Special illustration rare'], rates: { 'Common': 43.75, 'Uncommon': 43.75, 'Illustration rare': 11.1, 'Special illustration rare': 1.43 } },
+  { name: 'Rare slot', n: 1, rates: { 'Rare': 71.6, 'Double rare': 20, 'Ultra Rare': 4.76, 'Mega Attack Rare': 3.45, 'Mega Hyper Rare': 0.185 } },
+  { name: 'God pack chance (percent of all packs)', n: 0, raw: true, rates: { 'God pack %': 0.05 } },
+  { name: 'God pack: what each of the 9 cards can be', n: 0, rates: { 'Double rare': 40, 'Illustration rare': 25, 'Ultra Rare': 14, 'Special illustration rare': 12, 'Mega Attack Rare': 7.5, 'Mega Hyper Rare': 1.5 } }
+];
+let ascDefaultSlots = ascDefaultDefs.map(function (d) { return d.rates; });
+let ascSlots = JSON.parse(JSON.stringify(ascDefaultSlots));
+
+function loadAscRates() {
+  try {
+    let saved = JSON.parse(localStorage.getItem('customRatesAsc'));
+    if (Array.isArray(saved) && saved.length === ascDefaultSlots.length) {
+      let ok = true;
+      for (let i = 0; i < saved.length; i++) {
+        for (let r in ascDefaultSlots[i]) {
+          if (!saved[i] || typeof saved[i][r] !== 'number' || !(saved[i][r] >= 0)) { ok = false; }
+        }
+      }
+      if (ok) {
+        ascSlots = saved.map(function (s, i) {
+          let o = {};
+          for (let r in ascDefaultSlots[i]) { o[r] = s[r]; }
+          return o;
+        });
+      }
+    }
+  } catch (e) {}
+}
+loadAscRates();
+
+let SETS = {
+  '30th': {
+    id: '30th',
+    name: '30th Celebration',
+    cost: 100,
+    packImage: 'https://images.squarespace-cdn.com/content/v1/5e3b1164feb39b444b58f15b/71dbc8d9-d9e4-47fb-b30b-f01b52b2d03b/Pokemon_TCG_30th_Celebration_Booster_Wrap.png',
+    packLabel: '30th<br>Celebration',
+    rarityKey: 'customRates'
+  },
+  'asc': {
+    id: 'asc',
+    name: 'Ascended Heroes',
+    cost: 150,
+    packImage: 'https://tse2.mm.bing.net/th/id/OIP.jMhsGp9APOaSzVZVII2dRAAAAA?r=0&rs=1&pid=ImgDetMain&o=7&rm=3',
+    packLabel: 'Ascended<br>Heroes',
+    rarityKey: 'customRatesAsc'
+  }
+};
+
+// Which set a card belongs to, from its key
+function cardSet(key) {
+  key = String(key || '');
+  if (key.indexOf('/me02.5/') !== -1 || key.indexOf('energy-asc-') === 0) { return 'asc'; }
+  return '30th';
+}
+
+function tableFor(setId) {
+  return setId === 'asc' ? ascByRarity : byRarity;
+}
+
+function setReady(setId) {
+  return setId === 'asc' ? ascLoaded : !!byRarity['Common'];
+}
+
+// Turns whatever TCGdex calls a rarity into the names this game uses
+function normRarity(text) {
+  let t = String(text || '').toLowerCase();
+  if (t.indexOf('hyper') !== -1) { return 'Mega Hyper Rare'; }
+  if (t.indexOf('attack') !== -1) { return 'Mega Attack Rare'; }
+  if (t.indexOf('special illustration') !== -1) { return 'Special illustration rare'; }
+  if (t.indexOf('illustration') !== -1) { return 'Illustration rare'; }
+  if (t.indexOf('double') !== -1) { return 'Double rare'; }
+  if (t.indexOf('ultra') !== -1) { return 'Ultra Rare'; }
+  if (t.indexOf('uncommon') !== -1) { return 'Uncommon'; }
+  if (t.indexOf('common') !== -1) { return 'Common'; }
+  return 'Rare';
+}
+
 
 let energies = [
   { name: 'Grass', color: '#4caf50', image: 'https://cardgamer.com/wp-content/uploads/2026/08/30th-Celebration-Energy-009.png' },
@@ -152,6 +261,16 @@ let energies = [
   { name: 'Darkness', color: '#37474f', image: 'https://cardgamer.com/wp-content/uploads/2026/08/30th-Celebration-Energy-015.png' },
   { name: 'Metal', color: '#90a4ae', image: 'https://cardgamer.com/wp-content/uploads/2026/08/30th-Celebration-Energy-016.png' }
 ];
+
+// Ascended Heroes energy: same colours and names, art from the Mega Evolution energy set.
+// If a picture is missing the game shows a coloured box instead.
+let ascEnergies = energies.map(function (e, i) {
+  return { name: e.name, color: e.color, image: 'https://assets.tcgdex.net/en/me/mee/' + String(i + 1).padStart(3, '0') + '/low.webp' };
+});
+
+function energyKey(energy) {
+  return (curSet === 'asc' ? 'energy-asc-' : 'energy-') + energy.name;
+}
 
 function esc(text) {
   return String(text)
@@ -362,12 +481,13 @@ function pickFrom(list) {
   return list[index];
 }
 
-function pickRarity(rates) {
+function pickRarity(rates, table) {
+  table = table || byRarity;
   let usable = [];
   let sum = 0;
   for (let rarity in rates) {
     let w = rates[rarity];
-    if (w > 0 && byRarity[rarity] && byRarity[rarity].length > 0) {
+    if (w > 0 && table[rarity] && table[rarity].length > 0) {
       usable.push(rarity);
       sum = sum + w;
     }
@@ -375,7 +495,7 @@ function pickRarity(rates) {
   if (usable.length === 0) {
     // all weights zero: fall back to the default rates for this slot
     for (let rarity in rates) {
-      if (byRarity[rarity] && byRarity[rarity].length > 0) { return rarity; }
+      if (table[rarity] && table[rarity].length > 0) { return rarity; }
     }
     return null;
   }
@@ -428,6 +548,8 @@ async function preloadAll(urls) {
 
 function priceIdFromUrl(url) {
   let id = null;
+  let asc = url.match(/\/me02\.5\/(\d{3})\//);
+  if (asc) { return 'me02.5-' + asc[1]; }
   let main = url.match(/\/30th\/(\d{3})\//);
   if (main) {
     id = '30c-' + main[1];
@@ -462,6 +584,16 @@ function savePriceCache() {
 }
 
 async function fetchPrice(id) {
+  if (id.indexOf('me02.5-') === 0) {
+    try {
+      let res = await fetch('https://api.tcgdex.net/v2/en/cards/' + id);
+      if (!res.ok) { return null; }
+      let card = await res.json();
+      return ascEur(card);
+    } catch (e) {
+      return null;
+    }
+  }
   try {
     let response = await fetch(priceApi + id + '?include=prices');
     if (!response.ok) {
@@ -690,13 +822,15 @@ function addToCollection(items) {
 
 function renderProgress(data) {
   let box = document.getElementById('coll-progress');
-  if (!byRarity['Common']) {
-    box.innerHTML = '';
+  let table = tableFor(curSet);
+  if (!setReady(curSet)) {
+    box.innerHTML = '<div class="progress-text">Loading ' + esc(SETS[curSet].name) + '...</div>';
     return;
   }
   let owned = {};
   let keys = Object.keys(data.cards);
   for (let i = 0; i < keys.length; i++) {
+    if (cardSet(keys[i]) !== curSet) { continue; }
     let r = data.cards[keys[i]].rarity;
     owned[r] = (owned[r] || 0) + 1;
   }
@@ -708,8 +842,8 @@ function renderProgress(data) {
     let total = 0;
     if (r === 'Energy') {
       total = energies.length;
-    } else if (byRarity[r]) {
-      total = byRarity[r].length;
+    } else if (table[r]) {
+      total = table[r].length;
     }
     if (total === 0) {
       continue;
@@ -728,9 +862,18 @@ function renderProgress(data) {
     pct = Math.round(ownedAll / totalAll * 100);
   }
   box.innerHTML =
-    '<div class="progress-text">' + ownedAll + ' of ' + totalAll + ' cards collected (' + pct + '%)</div>' +
+    '<div class="progress-text">' + esc(SETS[curSet].name) + ': ' + ownedAll + ' of ' + totalAll + ' cards collected (' + pct + '%)</div>' +
     '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
     '<div class="chips">' + chips + '</div>';
+}
+
+let collSetFilter = 'all';
+let collSetKey = 'pokemonPackCollSet';
+
+function changeCollSet(value) {
+  collSetFilter = (value === '30th' || value === 'asc') ? value : 'all';
+  try { localStorage.setItem(collSetKey, collSetFilter); } catch (e) {}
+  renderCollection();
 }
 
 function renderCollection() {
@@ -755,6 +898,7 @@ function renderCollection() {
 
   let html = '';
   for (let i = 0; i < keys.length; i++) {
+    if (collSetFilter !== 'all' && cardSet(keys[i]) !== collSetFilter) { continue; }
     let card = data.cards[keys[i]];
     let inner = '';
     let id = null;
@@ -787,6 +931,9 @@ function renderCollection() {
       rank = 99;
     }
     html = html + '<div class="coll-card" data-pid="' + esc(id || '') + '" data-rank="' + rank + '" data-key="' + esc(keys[i]) + '">' + inner + badge + price + sell + '</div>';
+  }
+  if (html === '') {
+    html = '<div class="coll-empty">No cards from this set yet.</div>';
   }
   grid.innerHTML = html;
   sortCollectionDom();
@@ -1009,43 +1156,68 @@ let binderPage = 0;
 let binderPerPage = 9;   // 3 x 3 pockets, like a real binder page
 let viewStoreKey = 'pokemonPackView';
 
-// Builds the list of pages. Each section (main set, Classic Collection...) starts on a new page.
-function binderPages() {
+// Builds the list of pages for the chosen set. Each section starts on a new page.
+function binderPages(setId) {
+  setId = setId || curSet;
   let sections = [];
 
-  let main = [];
-  for (let rarity in byRarity) {
-    for (let i = 0; i < byRarity[rarity].length; i++) {
-      let url = byRarity[rarity][i];
-      let m = url.match(/\/30th\/(\d{3})\//);
-      if (m) {
-        main.push({ key: url, rarity: rarity, label: String(Number(m[1])), num: Number(m[1]) });
+  if (setId === 'asc') {
+    let main = [];
+    let secret = [];
+    for (let rarity in ascByRarity) {
+      for (let i = 0; i < ascByRarity[rarity].length; i++) {
+        let url = ascByRarity[rarity][i];
+        let m = url.match(/\/me02\.5\/(\d{3})\//);
+        if (!m) { continue; }
+        let n = Number(m[1]);
+        let slot = { key: url, rarity: rarity, label: String(n), num: n };
+        if (n <= ascMainCount) { main.push(slot); } else { secret.push(slot); }
       }
     }
-  }
-  main.sort(function (a, b) { return a.num - b.num; });
-  sections.push({ title: 'Main set', slots: main });
+    main.sort(function (a, b) { return a.num - b.num; });
+    secret.sort(function (a, b) { return a.num - b.num; });
+    sections.push({ title: 'Main set', slots: main });
+    sections.push({ title: 'Secret rares', slots: secret });
+    let aen = [];
+    for (let i = 0; i < ascEnergies.length; i++) {
+      aen.push({ key: 'energy-asc-' + ascEnergies[i].name, rarity: 'Energy', label: ascEnergies[i].name });
+    }
+    sections.push({ title: 'Energies', slots: aen });
+  } else {
+    let main = [];
+    for (let rarity in byRarity) {
+      for (let i = 0; i < byRarity[rarity].length; i++) {
+        let url = byRarity[rarity][i];
+        let m = url.match(/\/30th\/(\d{3})\//);
+        if (m) {
+          main.push({ key: url, rarity: rarity, label: String(Number(m[1])), num: Number(m[1]) });
+        }
+      }
+    }
+    main.sort(function (a, b) { return a.num - b.num; });
+    sections.push({ title: 'Main set', slots: main });
 
-  let cc = [];
-  let ccList = byRarity['Classic Collection'] || [];
-  for (let i = 0; i < ccList.length; i++) {
-    cc.push({ key: ccList[i], rarity: 'Classic Collection', label: 'CC ' + (i + 1) });
-  }
-  sections.push({ title: 'Classic Collection', slots: cc });
+    let cc = [];
+    let ccList = byRarity['Classic Collection'] || [];
+    for (let i = 0; i < ccList.length; i++) {
+      cc.push({ key: ccList[i], rarity: 'Classic Collection', label: 'CC ' + (i + 1) });
+    }
+    sections.push({ title: 'Classic Collection', slots: cc });
 
-  let rgb = [];
-  let rgbList = byRarity['RGB Mew'] || [];
-  let rgbNames = ['R', 'G', 'B'];
-  for (let i = 0; i < rgbList.length; i++) {
-    rgb.push({ key: rgbList[i], rarity: 'RGB Mew', label: 'Mew ' + (rgbNames[i] || (i + 1)) });
-  }
-  sections.push({ title: 'RGB Mew', slots: rgb });
+    let rgb = [];
+    let rgbList = byRarity['RGB Mew'] || [];
+    let rgbNames = ['R', 'G', 'B'];
+    for (let i = 0; i < rgbList.length; i++) {
+      rgb.push({ key: rgbList[i], rarity: 'RGB Mew', label: 'Mew ' + (rgbNames[i] || (i + 1)) });
+    }
+    sections.push({ title: 'RGB Mew', slots: rgb });
 
-  let en = [];
-  for (let i = 0; i < energies.length; i++) {
-    en.push({ key: 'energy-' + energies[i].name, rarity: 'Energy', label: energies[i].name });
+    let en = [];
+    for (let i = 0; i < energies.length; i++) {
+      en.push({ key: 'energy-' + energies[i].name, rarity: 'Energy', label: energies[i].name });
+    }
+    sections.push({ title: 'Energies', slots: en });
   }
-  sections.push({ title: 'Energies', slots: en });
 
   let pages = [];
   for (let s = 0; s < sections.length; s++) {
@@ -1059,6 +1231,9 @@ function binderPages() {
         slots: sec.slots.slice(p * binderPerPage, (p + 1) * binderPerPage)
       });
     }
+  }
+  if (pages.length === 0) {
+    pages.push({ title: 'Loading', part: 1, parts: 1, slots: [] });
   }
   return pages;
 }
@@ -1091,7 +1266,7 @@ function binderSlotHtml(slot, card, w, h) {
 function renderBinder() {
   let box = document.getElementById('binder-page');
   if (!box) { return; }
-  if (!byRarity['Common']) {
+  if (!setReady(curSet)) {
     box.innerHTML = '<div class="coll-empty">Loading cards...</div>';
     return;
   }
@@ -1125,7 +1300,8 @@ function renderBinder() {
   document.getElementById('binder-count').innerText = owned + ' of ' + page.slots.length + ' on this page';
 
   let sel = document.getElementById('binder-select');
-  if (sel.options.length !== pages.length) {
+  if (sel.options.length !== pages.length || sel.dataset.set !== curSet) {
+    sel.dataset.set = curSet;
     let opts = '';
     for (let i = 0; i < pages.length; i++) {
       let t = pages[i].title;
@@ -1192,6 +1368,20 @@ let rewardRarityBonus = {
   'Futuristic Rare': 5000,
   'RGB Mew': 10000
 };
+// Ascended Heroes rewards
+let ascPageBonus = { 'Main set': 100, 'Secret rares': 400, 'Energies': 50 };
+let ascRarityBonus = {
+  'Energy': 100,
+  'Common': 400,
+  'Uncommon': 400,
+  'Rare': 400,
+  'Double rare': 800,
+  'Illustration rare': 1500,
+  'Ultra Rare': 1500,
+  'Special illustration rare': 4000,
+  'Mega Attack Rare': 5000,
+  'Mega Hyper Rare': 8000
+};
 let rewardNote = '';   // shown after a pack finishes
 
 // Checks every reward and pays out any that were just earned. Each is paid once per account.
@@ -1214,33 +1404,46 @@ function checkRewards() {
     if (data.packs >= m[0]) { grant('reward:packs:' + m[0], m[1], m[0] + ' packs opened'); }
   }
 
-  let pages = binderPages();
-  for (let i = 0; i < pages.length; i++) {
-    let page = pages[i];
-    if (page.slots.length === 0) { continue; }
-    let all = true;
-    for (let s = 0; s < page.slots.length; s++) {
-      if (!data.cards[page.slots[s].key]) { all = false; break; }
+  function setRewards(setId) {
+    let asc = setId === 'asc';
+    let table = tableFor(setId);
+    let prefix = asc ? 'reward:asc:' : 'reward:';
+    let pageBonus = asc ? ascPageBonus : rewardPageBonus;
+    let rarityBonus = asc ? ascRarityBonus : rewardRarityBonus;
+    let tag = asc ? 'Ascended Heroes: ' : '';
+    let list = asc ? ascEnergies : energies;
+
+    let pages = binderPages(setId);
+    for (let i = 0; i < pages.length; i++) {
+      let page = pages[i];
+      if (page.slots.length === 0) { continue; }
+      let all = true;
+      for (let s = 0; s < page.slots.length; s++) {
+        if (!data.cards[page.slots[s].key]) { all = false; break; }
+      }
+      if (all) {
+        grant(prefix + 'page:' + page.title + ':' + page.part, pageBonus[page.title] || 50, tag + 'Binder page ' + (i + 1) + ' complete');
+      }
     }
-    if (all) {
-      grant('reward:page:' + page.title + ':' + page.part, rewardPageBonus[page.title] || 50, 'Binder page ' + (i + 1) + ' complete');
+
+    for (let r in rarityBonus) {
+      let keys = [];
+      if (r === 'Energy') {
+        for (let i = 0; i < list.length; i++) { keys.push((asc ? 'energy-asc-' : 'energy-') + list[i].name); }
+      } else if (table[r]) {
+        keys = table[r];
+      }
+      if (keys.length === 0) { continue; }
+      let all = true;
+      for (let i = 0; i < keys.length; i++) {
+        if (!data.cards[keys[i]]) { all = false; break; }
+      }
+      if (all) { grant(prefix + 'rarity:' + r, rarityBonus[r], tag + 'All ' + r + ' cards collected'); }
     }
   }
 
-  for (let r in rewardRarityBonus) {
-    let keys = [];
-    if (r === 'Energy') {
-      for (let i = 0; i < energies.length; i++) { keys.push('energy-' + energies[i].name); }
-    } else if (byRarity[r]) {
-      keys = byRarity[r];
-    }
-    if (keys.length === 0) { continue; }
-    let all = true;
-    for (let i = 0; i < keys.length; i++) {
-      if (!data.cards[keys[i]]) { all = false; break; }
-    }
-    if (all) { grant('reward:rarity:' + r, rewardRarityBonus[r], 'All ' + r + ' cards collected'); }
-  }
+  setRewards('30th');
+  if (ascLoaded) { setRewards('asc'); }
 
   if (total > 0) {
     coins = coins + total;
@@ -1391,13 +1594,13 @@ function layoutStack() {
 function showProgress() {
   let info = document.getElementById('info');
   if (topIndex >= stackCards.length) {
-    info.innerText = 'Pack finished! ' + packValueText() + ' Click Open Pack for another.';
+    info.innerText = (godNow ? 'GOD PACK! ' : '') + 'Pack finished! ' + packValueText() + ' Click Open Pack for another.';
     if (rewardNote) {
       info.innerText = info.innerText + ' ' + rewardNote;
       rewardNote = '';
     }
   } else {
-    info.innerText = 'Card ' + (topIndex + 1) + ' of ' + stackCards.length + ' - swipe it away';
+    info.innerText = (godNow ? 'GOD PACK! ' : '') + 'Card ' + (topIndex + 1) + ' of ' + stackCards.length + ' - swipe it away';
   }
 }
 
@@ -1430,7 +1633,7 @@ function buildStack(items) {
     if (items[i].cardId) {
       tag = '<div class="pricetag" data-price-id="' + esc(items[i].cardId) + '">' + esc(priceText(items[i].cardId)) + '</div>';
     }
-    div.innerHTML = items[i].html + holoHtml(items[i].rarity) + tag;
+    div.innerHTML = items[i].html + holoHtml(items[i].holo || items[i].rarity) + tag;
     pack.appendChild(div);
     stackCards.push(div);
   }
@@ -1448,7 +1651,7 @@ function buildStack(items) {
     pack.insertAdjacentHTML('beforeend',
       '<div class="boosterpack" id="boosterpack">' +
       '<div class="packtop"></div>' +
-      '<div class="packbody"><div class="packlabel">30th<br>Celebration</div><div class="packsub">Booster Pack</div></div>' +
+      '<div class="packbody"><div class="packlabel">' + SETS[curSet].packLabel + '</div><div class="packsub">Booster Pack</div></div>' +
       '</div>');
   }
 
@@ -1467,7 +1670,11 @@ function ripPack() {
   addToCollection(currentItems);
   let packLog = [];
   for (let i = 0; i < currentItems.length; i++) { packLog.push({ k: currentItems[i].key, r: currentItems[i].rarity }); }
-  logEvent('pack', { cards: packLog });
+  if (godNow) {
+    logEvent('pack', { cards: packLog, god: true });
+  } else {
+    logEvent('pack', { cards: packLog });
+  }
   checkRewards();
 
   let myId = packId;
@@ -1499,10 +1706,62 @@ function ripPack() {
   }, 950);
 }
 
+function pickUnique(table, rarity, used) {
+  let list = table[rarity];
+  let url = pickFrom(list);
+  for (let tries = 0; tries < 12 && used[url]; tries++) { url = pickFrom(list); }
+  used[url] = true;
+  return url;
+}
+
+// Builds the cards of one Ascended Heroes pack
+function buildAscItems() {
+  let energy = pickFrom(ascEnergies);
+  let items = [{
+    html: energyHtml(energy),
+    rarity: 'Energy',
+    key: 'energy-asc-' + energy.name,
+    img: energy.image,
+    name: energy.name,
+    color: energy.color,
+    cardId: null
+  }];
+  let used = {};
+  let chance = ascSlots[5]['God pack %'];
+  let hits = ascSlots[6];
+  let god = chance > 0 && Math.random() * 100 < chance && pickRarity(hits, ascByRarity) !== null;
+  if (god) {
+    for (let i = 0; i < 9; i++) {
+      let rarity = pickRarity(hits, ascByRarity);
+      let url = pickUnique(ascByRarity, rarity, used);
+      items.push({ html: cardImage(url), rarity: rarity, key: url, img: url, cardId: priceIdFromUrl(url) });
+    }
+    godNow = true;
+    return items;
+  }
+  for (let d = 0; d < 5; d++) {
+    let def = ascDefaultDefs[d];
+    for (let k = 0; k < def.n; k++) {
+      let rarity = pickRarity(ascSlots[d], ascByRarity);
+      if (!rarity) { continue; }
+      let url = pickUnique(ascByRarity, rarity, used);
+      let rev = false;
+      if (def.rev) { rev = true; }
+      if (def.revUnless && def.revUnless.indexOf(rarity) === -1) { rev = true; }
+      let item = { html: cardImage(url), rarity: rarity, key: url, img: url, cardId: priceIdFromUrl(url) };
+      if (rev) { item.holo = 'Reverse holo'; }
+      items.push(item);
+    }
+  }
+  godNow = false;
+  return items;
+}
+
 function openPack() {
   getAudio();
-  if (!byRarity['Common']) {
+  if (!setReady(curSet)) {
     document.getElementById('info').innerText = 'Still loading, try again in a second.';
+    if (curSet === 'asc') { loadAsc(); }
     return;
   }
   if (packSealed) {
@@ -1516,26 +1775,36 @@ function openPack() {
   coins = coins - packCost;
   saveCoins();
   updateShop();
-  let energy = pickFrom(energies);
-  let items = [{
-    html: energyHtml(energy),
-    rarity: 'Energy',
-    key: 'energy-' + energy.name,
-    img: energy.image,
-    name: energy.name,
-    color: energy.color,
-    cardId: null
-  }];
-  for (let i = 0; i < slots.length; i++) {
-    let rarity = pickRarity(slots[i]);
-    if (!rarity) { continue; }
-    let url = pickFrom(byRarity[rarity]);
-    items.push({ html: cardImage(url), rarity: rarity, key: url, img: url, cardId: priceIdFromUrl(url) });
+  let items = [];
+  godNow = false;
+  if (curSet === 'asc') {
+    items = buildAscItems();
+  } else {
+    let energy = pickFrom(energies);
+    items = [{
+      html: energyHtml(energy),
+      rarity: 'Energy',
+      key: 'energy-' + energy.name,
+      img: energy.image,
+      name: energy.name,
+      color: energy.color,
+      cardId: null
+    }];
+    for (let i = 0; i < slots.length; i++) {
+      let rarity = pickRarity(slots[i]);
+      if (!rarity) { continue; }
+      let url = pickFrom(byRarity[rarity]);
+      items.push({ html: cardImage(url), rarity: rarity, key: url, img: url, cardId: priceIdFromUrl(url) });
+    }
+    let pikachu = pickFrom(byRarity['Pikachu Rare']);
+    items.push({ html: cardImage(pikachu), rarity: 'Pikachu Rare', key: pikachu, img: pikachu, cardId: priceIdFromUrl(pikachu) });
   }
-  let pikachu = pickFrom(byRarity['Pikachu Rare']);
-  items.push({ html: cardImage(pikachu), rarity: 'Pikachu Rare', key: pikachu, img: pikachu, cardId: priceIdFromUrl(pikachu) });
   buildStack(items);
   loadPackPrices(items);
+  if (godNow) {
+    playHit('Mega Hyper Rare');
+    document.getElementById('info').innerText = 'GOD PACK! Every card in it is a hit. Swipe across the top to rip it open.';
+  }
 }
 
 function updateGlare(e) {
@@ -1746,6 +2015,145 @@ async function loadCards() {
   }
   preloadAll(allUrls);
   checkRewards();
+  loadAsc();
+}
+
+// ---------- Ascended Heroes data ----------
+
+// TCGdex gives prices in euros inside each card
+function ascEur(card) {
+  let p = card && card.pricing && card.pricing.cardmarket;
+  if (!p) { return null; }
+  let v = p.avg7;
+  if (typeof v !== 'number') { v = p.trend; }
+  if (typeof v !== 'number') { v = p.avg; }
+  if (typeof v !== 'number') { return null; }
+  return v;
+}
+
+async function getAscCard(padded) {
+  try {
+    let res = await fetch('https://api.tcgdex.net/v2/en/cards/me02.5-' + padded);
+    if (!res.ok) { return null; }
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+async function loadAsc() {
+  if (ascLoaded || ascLoading) { return; }
+  ascLoading = true;
+  let info = {};
+  let stamp = Date.now();
+  try {
+    let cache = JSON.parse(localStorage.getItem(ascCacheKey));
+    if (cache && cache.cards && Date.now() - cache.t < ascCacheMaxAge) {
+      info = cache.cards;
+      stamp = cache.t;
+    }
+  } catch (e) {}
+
+  for (let pass = 0; pass < 3; pass++) {
+    let missing = [];
+    for (let n = 1; n <= ascCount; n++) {
+      let padded = String(n).padStart(3, '0');
+      if (!info[padded]) { missing.push(padded); }
+    }
+    if (missing.length === 0) { break; }
+    if (curSet === 'asc') { document.getElementById('info').innerText = 'Loading Ascended Heroes... ' + (ascCount - missing.length) + '/' + ascCount; }
+    for (let i = 0; i < missing.length; i += 40) {
+      let batch = missing.slice(i, i + 40);
+      let results = await Promise.all(batch.map(getAscCard));
+      for (let j = 0; j < batch.length; j++) {
+        let card = results[j];
+        if (card && card.rarity) {
+          info[batch[j]] = { r: normRarity(card.rarity), e: ascEur(card) };
+        }
+      }
+    }
+    stamp = Date.now();
+  }
+
+  let have = Object.keys(info).length;
+  if (have === 0) {
+    ascLoading = false;
+    if (curSet === 'asc') { document.getElementById('info').innerText = 'Could not load Ascended Heroes. Check your connection and reload.'; }
+    return;
+  }
+  if (have >= ascCount) {
+    try { localStorage.setItem(ascCacheKey, JSON.stringify({ t: stamp, cards: info })); } catch (e) {}
+  }
+
+  ascByRarity = {};
+  let urls = [];
+  for (let n = 1; n <= ascCount; n++) {
+    let padded = String(n).padStart(3, '0');
+    let c = info[padded];
+    if (!c) { continue; }
+    let url = 'https://assets.tcgdex.net/en/me/me02.5/' + padded + '/low.webp';
+    if (!ascByRarity[c.r]) { ascByRarity[c.r] = []; }
+    ascByRarity[c.r].push(url);
+    urls.push(url);
+    if (typeof c.e === 'number') {
+      let id = 'me02.5-' + padded;
+      if (!priceCache[id] || stamp > priceCache[id].t) { priceCache[id] = { eur: c.e, t: stamp }; }
+    }
+  }
+  savePriceCache();
+  ascLoaded = true;
+  ascLoading = false;
+  if (curSet === 'asc') {
+    document.getElementById('info').innerText = 'Ready! Click Open Pack.';
+    preloadAll(urls);
+  }
+  renderCollection();
+  checkRewards();
+}
+
+// ---------- Choosing a set ----------
+
+function applySet() {
+  let cfg = SETS[curSet];
+  packCost = cfg.cost;
+  packImageUrl = cfg.packImage;
+  packRatio = null;
+  loadPackImage();
+  let sub = document.querySelector('.subtitle');
+  if (sub) { sub.innerText = cfg.name; }
+  let sel = document.getElementById('set-select');
+  if (sel) { sel.value = curSet; }
+  binderPage = 0;
+  updateShop();
+}
+
+function changeSet(value) {
+  if (!SETS[value] || value === curSet) { return; }
+  curSet = value;
+  try { localStorage.setItem(setStoreKey, curSet); } catch (e) {}
+  applySet();
+  if (curSet === 'asc' && !ascLoaded) {
+    loadAsc();
+  } else if (curSet === 'asc') {
+    let urls = [];
+    for (let r in ascByRarity) { urls = urls.concat(ascByRarity[r]); }
+    preloadAll(urls);
+  }
+  if (!packSealed) {
+    document.getElementById('info').innerText = setReady(curSet) ? 'Ready! Click Open Pack.' : 'Loading...';
+  }
+  renderCollection();
+}
+
+function loadSetChoice() {
+  try {
+    let saved = localStorage.getItem(setStoreKey);
+    if (SETS[saved]) { curSet = saved; }
+    let f = localStorage.getItem(collSetKey);
+    if (f === '30th' || f === 'asc') { collSetFilter = f; }
+  } catch (e) {}
+  let fs = document.getElementById('coll-set');
+  if (fs) { fs.value = collSetFilter; }
 }
 
 
@@ -1783,8 +2191,16 @@ async function checkPassword(text) {
   return bytesToHex(bits) === shineKey;
 }
 
+let devSet = '30th';
+
+function devSlotsFor(setId) { return setId === 'asc' ? ascSlots : slots; }
+function devDefaultsFor(setId) { return setId === 'asc' ? ascDefaultSlots : defaultSlots; }
+
 function saveRates() {
-  try { localStorage.setItem('customRates', JSON.stringify(slots)); } catch (e) {}
+  try {
+    localStorage.setItem('customRates', JSON.stringify(slots));
+    localStorage.setItem('customRatesAsc', JSON.stringify(ascSlots));
+  } catch (e) {}
 }
 
 function closeDev() {
@@ -1834,12 +2250,14 @@ function showLogin() {
 }
 
 function effectiveText(slotIndex, rarity) {
-  let rates = slots[slotIndex];
+  let rates = devSlotsFor(devSet)[slotIndex];
+  let table = tableFor(devSet);
+  if (devSet === 'asc' && slotIndex === 5) { return ''; }
   let sum = 0;
   for (let r in rates) {
-    if (rates[r] > 0 && byRarity[r] && byRarity[r].length > 0) { sum += rates[r]; }
+    if (rates[r] > 0 && table[r] && table[r].length > 0) { sum += rates[r]; }
   }
-  if (sum <= 0 || !(rates[rarity] > 0) || !byRarity[rarity] || byRarity[rarity].length === 0) { return '0%'; }
+  if (sum <= 0 || !(rates[rarity] > 0) || !table[rarity] || table[rarity].length === 0) { return '0%'; }
   let pct = rates[rarity] / sum * 100;
   return (pct >= 10 ? pct.toFixed(1) : pct.toFixed(2)) + '%';
 }
@@ -1873,15 +2291,19 @@ function showPlayersTab() {
 function showDevPanel() {
   let box = document.getElementById('dev-box');
   box.classList.remove('wide');
-  let html = devTabs('rates') + '<h3>Pull rates</h3><div class="dev-note">Changes apply to the next pack and are saved in this browser only.</div>';
-  for (let i = 0; i < slots.length; i++) {
-    html += '<div class="dev-slot"><div class="dev-slot-title">Slot ' + (i + 1) + '</div>';
-    for (let r in defaultSlots[i]) {
-      let max = Math.max(100, Math.ceil(defaultSlots[i][r]));
+  let list = devSlotsFor(devSet);
+  let defaults = devDefaultsFor(devSet);
+  let html = devTabs('rates') + '<h3>Pull rates</h3><div class="dev-note">Changes apply to the next pack and are saved in this browser only.</div>' +
+    '<div class="dev-tabs"><button class="dev-tab' + (devSet === '30th' ? ' on' : '') + '" id="dev-set-30th">30th Celebration</button>' +
+    '<button class="dev-tab' + (devSet === 'asc' ? ' on' : '') + '" id="dev-set-asc">Ascended Heroes</button></div>';
+  for (let i = 0; i < list.length; i++) {
+    let title = devSet === 'asc' ? ascDefaultDefs[i].name : 'Slot ' + (i + 1);
+    html += '<div class="dev-slot"><div class="dev-slot-title">' + esc(title) + '</div>';
+    for (let r in defaults[i]) {
       html += '<div class="dev-row">' +
         '<span class="dev-label">' + esc(r) + '</span>' +
-        '<input class="dev-range" type="range" min="0" max="100" step="0.005" data-s="' + i + '" data-r="' + esc(r) + '" value="' + slots[i][r] + '">' +
-        '<input class="dev-num" type="number" min="0" max="100" step="any" data-s="' + i + '" data-r="' + esc(r) + '" value="' + slots[i][r] + '">' +
+        '<input class="dev-range" type="range" min="0" max="100" step="0.005" data-s="' + i + '" data-r="' + esc(r) + '" value="' + list[i][r] + '">' +
+        '<input class="dev-num" type="number" min="0" max="100" step="any" data-s="' + i + '" data-r="' + esc(r) + '" value="' + list[i][r] + '">' +
         '<span class="dev-eff" data-s="' + i + '" data-r="' + esc(r) + '"></span></div>';
     }
     html += '</div>';
@@ -1892,6 +2314,8 @@ function showDevPanel() {
   box.innerHTML = html;
   document.getElementById('dev-overlay').style.display = 'flex';
   wireDevTabs();
+  document.getElementById('dev-set-30th').onclick = function () { devSet = '30th'; showDevPanel(); };
+  document.getElementById('dev-set-asc').onclick = function () { devSet = 'asc'; showDevPanel(); };
 
   function refreshLabels() {
     box.querySelectorAll('.dev-eff').forEach(function (el) {
@@ -1902,7 +2326,7 @@ function showDevPanel() {
     let v = parseFloat(value);
     if (!(v >= 0)) { v = 0; }
     if (v > 100) { v = 100; }
-    slots[Number(el.dataset.s)][el.dataset.r] = v;
+    devSlotsFor(devSet)[Number(el.dataset.s)][el.dataset.r] = v;
     box.querySelectorAll('input[data-s="' + el.dataset.s + '"]').forEach(function (other) {
       if (other.dataset.r === el.dataset.r && other !== el) { other.value = v; }
     });
@@ -1916,8 +2340,13 @@ function showDevPanel() {
     el.oninput = function () { setValue(el, el.value); };
   });
   document.getElementById('dev-reset').onclick = function () {
-    slots = JSON.parse(JSON.stringify(defaultSlots));
-    try { localStorage.removeItem('customRates'); } catch (e) {}
+    if (devSet === 'asc') {
+      ascSlots = JSON.parse(JSON.stringify(ascDefaultSlots));
+      try { localStorage.removeItem('customRatesAsc'); } catch (e) {}
+    } else {
+      slots = JSON.parse(JSON.stringify(defaultSlots));
+      try { localStorage.removeItem('customRates'); } catch (e) {}
+    }
     showDevPanel();
   };
   document.getElementById('dev-close').onclick = closeDev;
@@ -1956,6 +2385,7 @@ loadPriceCache();
 loadSortMode();
 loadSound();
 setupSwipe();
+loadSetChoice();
+applySet();
 renderCollection();
-loadPackImage();
 loadCards();

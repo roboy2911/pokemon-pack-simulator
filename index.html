@@ -452,6 +452,7 @@
   .coll-card:hover .coll-sell, .coll-sell:focus { opacity: 1; }
   @media (hover: none) { .coll-sell { opacity: 1; } }
 
+  .set-pick { text-align: center; margin: 0 0 10px; font-size: 14px; }
   .view-tabs { display: flex; justify-content: center; gap: 8px; margin: 0 0 20px; }
   .tab { appearance: none; border: 1px solid #d8d3c8; background: #fff; color: #2b2b2b; border-radius: 999px; padding: 8px 20px; font-size: 14px; cursor: pointer; }
   .tab.active { background: #2b2b2b; color: #fff; border-color: #2b2b2b; }
@@ -548,6 +549,10 @@
     <span class="coin-pill">Coins: <b id="coin-count">0</b></span>
     <button class="daily-btn" id="daily-btn" onclick="claimDaily()">Claim daily reward</button>
   </div>
+  <div class="set-pick"><label>Set <select id="set-select" class="sort-select" onchange="changeSet(this.value)">
+    <option value="30th">30th Celebration</option>
+    <option value="asc">Ascended Heroes</option>
+  </select></label></div>
   <button class="open-btn" id="open-btn" onclick="openPack()">Open Pack</button>
   <div id="pack"></div>
   <p id="info"></p>
@@ -579,6 +584,13 @@
     <div class="coll-head">
       <h2>Your collection</h2>
       <span id="coll-stats"></span>
+      <label class="sort-label">Set
+        <select id="coll-set" class="sort-select" onchange="changeCollSet(this.value)">
+          <option value="all">All sets</option>
+          <option value="30th">30th Celebration</option>
+          <option value="asc">Ascended Heroes</option>
+        </select>
+      </label>
       <label class="sort-label">Sort by
         <select id="coll-sort" class="sort-select" onchange="changeSort(this.value)">
           <option value="price">Price (high to low)</option>
@@ -603,7 +615,7 @@
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=4"></script>
+  <script src="script.js?v=5"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="trade.js"></script>
   <script type="module" src="admin.js"></script>

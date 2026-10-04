@@ -17,6 +17,8 @@ let boughtMap = {};       // listings I bought
 let unsubs = [];
 let chain = Promise.resolve();
 let busy = false;
+let loadErr = '';
+let lastErr = '';
 let ui = { rarity: 'All', sort: 'cheap', pick: null, qty: 1, price: '' };
 
 function $(id) { return document.getElementById(id); }
@@ -74,6 +76,9 @@ function timeLeft(l) {
 
 function label(key) {
   key = String(key || '');
+  let a = key.match(/\/me02\.5\/(\d{3})\//);
+  if (a) { return 'AH #' + Number(a[1]); }
+  if (key.indexOf('energy-asc-') === 0) { return key.slice(11) + ' Energy'; }
   let m = key.match(/\/30th\/(\d{3})\//);
   if (m) { return '#' + Number(m[1]); }
   let cc = key.match(/30ccc-(\d+)/);
@@ -162,6 +167,7 @@ function drawBrowse() {
   });
   let html = '';
   for (let i = 0; i < list.length && i < 120; i++) { html += tile(list[i][1], list[i][0], 'browse'); }
+  if (loadErr) { box.innerHTML = '<div class="tmsg">Could not load the marketplace (' + esc(loadErr) + '). The database rules for listings may not be published yet.</div>'; return; }
   box.innerHTML = html ? '<div class="mk-grid">' + html + '</div>' + (list.length > 120 ? '<div class="tempty">Showing the first 120 of ' + list.length + '. Use the filters to narrow it down.</div>' : '')
     : '<div class="tempty">Nothing for sale' + (ui.rarity !== 'All' ? ' in ' + esc(ui.rarity) : '') + ' right now.</div>';
 }
@@ -299,6 +305,7 @@ async function listCards() {
       });
       done++;
     } catch (e) {
+      lastErr = (e && e.code) ? e.code : 'error';
       addOne(key, card);
       try { await pushNow(); } catch (e2) {}
       break;
@@ -310,10 +317,11 @@ async function listCards() {
     logMarket('market_list', { k: key, r: card.rarity, price: price, n: done });
     setMsg('Listed ' + done + ' x ' + label(key) + ' for ' + price.toLocaleString() + ' coins each.', true);
   } else {
-    setMsg('Could not list that. Nothing was lost.');
+    setMsg('Could not list that (' + lastErr + '). Nothing was lost. If it says permission-denied, publish the new database rules.');
   }
   drawSell();
   if (done) { setMsg('Listed ' + done + ' x ' + label(key) + ' for ' + price.toLocaleString() + ' coins each.', true); }
+  else { setMsg('Could not list that (' + lastErr + '). Nothing was lost. If it says permission-denied, publish the new database rules.'); }
 }
 
 async function cancelListing(id) {
@@ -455,7 +463,10 @@ function startListening() {
       });
       render();
       runProcess();
-    }, function () {});
+    }, function (err) {
+      loadErr = (err && err.code) ? err.code : 'error';
+      render();
+    });
   }
   unsubs.push(watch(query(collection(db, 'listings'), where('status', '==', 'open')), openMap, true));
   unsubs.push(watch(query(collection(db, 'listings'), where('seller', '==', c.uid)), mineMap, false));
@@ -464,6 +475,7 @@ function startListening() {
 
 function reset() {
   openMap = {}; mineMap = {}; boughtMap = {};
+  loadErr = '';
   ui = { rarity: 'All', sort: 'cheap', pick: null, qty: 1, price: '' };
   if ($('market-root')) { $('market-root').innerHTML = ''; }
 }
@@ -496,4 +508,6 @@ $('market-view').addEventListener('click', function (e) {
   else if (act === 'cancel') { cancelListing(el.dataset.id); }
 });
 
+// If sign-in finished before this file loaded, start now
+if (me()) { startListening(); }
 render();

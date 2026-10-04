@@ -143,6 +143,9 @@ function fmtTime(t) {
 
 function cardLabel(key) {
   key = String(key || '');
+  let a = key.match(/\/me02\.5\/(\d{3})\//);
+  if (a) { return 'AH #' + Number(a[1]); }
+  if (key.indexOf('energy-asc-') === 0) { return key.slice(11) + ' Energy'; }
   let m = key.match(/\/30th\/(\d{3})\//);
   if (m) { return '#' + Number(m[1]); }
   let cc = key.match(/30ccc-(\d+)/);
@@ -360,8 +363,11 @@ function allCardsFor(rarity) {
     for (let i = 0; i < energies.length; i++) {
       list.push({ key: 'energy-' + energies[i].name, rarity: 'Energy', img: energies[i].image, name: energies[i].name, color: energies[i].color, count: 1 });
     }
+    for (let i = 0; i < ascEnergies.length; i++) {
+      list.push({ key: 'energy-asc-' + ascEnergies[i].name, rarity: 'Energy', img: ascEnergies[i].image, name: ascEnergies[i].name, color: ascEnergies[i].color, count: 1 });
+    }
   } else {
-    let urls = byRarity[rarity] || [];
+    let urls = (byRarity[rarity] || []).concat(ascByRarity[rarity] || []);
     for (let i = 0; i < urls.length; i++) {
       list.push({ key: urls[i], rarity: rarity, img: urls[i], name: '', color: '', count: 1 });
     }
@@ -405,10 +411,19 @@ function drawDetail() {
   let chips = '';
   let owned = {};
   for (let i = 0; i < keys.length; i++) { owned[cards[keys[i]].rarity] = (owned[cards[keys[i]].rarity] || 0) + 1; }
-  for (let i = 0; i < rarityOrder.length; i++) {
-    let r = rarityOrder[i];
-    let t = r === 'Energy' ? energies.length : (byRarity[r] ? byRarity[r].length : 0);
-    if (t) { chips += '<span class="chip">' + esc(r) + ' ' + Math.min(owned[r] || 0, t) + '/' + t + '</span>'; }
+  let sets = [['30th', '30th', byRarity], ['asc', 'Ascended Heroes', ascByRarity]];
+  for (let q = 0; q < sets.length; q++) {
+    let own = {};
+    for (let i = 0; i < keys.length; i++) {
+      if (cardSet(keys[i]) === sets[q][0]) { own[cards[keys[i]].rarity] = (own[cards[keys[i]].rarity] || 0) + 1; }
+    }
+    let part = '';
+    for (let i = 0; i < rarityOrder.length; i++) {
+      let r = rarityOrder[i];
+      let t = r === 'Energy' ? energies.length : (sets[q][2][r] ? sets[q][2][r].length : 0);
+      if (t) { part += '<span class="chip">' + esc(r) + ' ' + Math.min(own[r] || 0, t) + '/' + t + '</span>'; }
+    }
+    if (part) { chips += '<div class="dev-note" style="margin:6px 0 2px">' + esc(sets[q][1]) + '</div>' + part; }
   }
   keys.sort(function (a, b) {
     let ra = rarityOrder.indexOf(cards[a].rarity); if (ra === -1) { ra = 99; }
@@ -554,3 +569,6 @@ document.addEventListener('change', function (e) {
     drawDetail();
   }
 });
+
+// If sign-in finished before this file loaded, start now
+if (me()) { startOps(); }
