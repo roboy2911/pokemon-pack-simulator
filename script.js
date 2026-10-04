@@ -250,9 +250,11 @@ loadTuRates();
 
 // Quick-sell values in Team Up are much bigger, because a Team Up pack costs 3000 coins
 let tuSellValues = {
-  'Energy': 5, 'Common': 20, 'Uncommon': 30, 'Rare': 80, 'Rare Holo': 300, 'Holo GX': 5000,
-  'Prism Star': 2500, 'Ultra Rare': 15000, 'Rainbow Rare': 40000, 'Secret Rare': 70000
+  'Energy': 5, 'Common': 10, 'Uncommon': 15, 'Rare': 25, 'Rare Holo': 50, 'Holo GX': 1000,
+  'Prism Star': 500, 'Ultra Rare': 10000, 'Rainbow Rare': 10000, 'Secret Rare': 3000
 };
+// Single cards with their own value (card number: coins). 170 = Latios & Latias GX (alt art)
+let tuCardSell = { 170: 100000 };
 
 let SETS = {
   '30th': {
@@ -1237,6 +1239,8 @@ function addCoins(amount) {
 
 function sellValue(rarity, key) {
   if (key && cardSet(key) === 'tu') {
+    let m = String(key).match(SETS.tu.imgRe);
+    if (m && tuCardSell[Number(m[1])]) { return tuCardSell[Number(m[1])]; }
     return tuSellValues[rarity] || sellValues[rarity] || 1;
   }
   return sellValues[rarity] || 1;
