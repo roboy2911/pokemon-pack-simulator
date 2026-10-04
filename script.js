@@ -176,14 +176,14 @@ let ascDefaultDefs = [
   { name: 'Reverse holo / IR / SIR slot', n: 1, revUnless: ['Illustration rare', 'Special illustration rare'], rates: { 'Common': 43.75, 'Uncommon': 43.75, 'Illustration rare': 11.1, 'Special illustration rare': 1.43 } },
   { name: 'Rare slot', n: 1, rates: { 'Rare': 71.6, 'Double rare': 20, 'Ultra Rare': 4.76, 'Mega Attack Rare': 3.45, 'Mega Hyper Rare': 0.185 } },
   { name: 'God pack chance (percent of all packs)', n: 0, raw: true, rates: { 'God pack %': 0.05 } },
-  { name: 'God pack: what each of the 9 cards can be', n: 0, rates: { 'Double rare': 40, 'Illustration rare': 25, 'Ultra Rare': 14, 'Special illustration rare': 12, 'Mega Attack Rare': 7.5, 'Mega Hyper Rare': 1.5 } }
+  { name: 'God pack contents (how many of each card, 10 cards total)', n: 0, counts: true, rates: { 'Mega Attack Rare': 3, 'Special illustration rare': 7, 'Mega Hyper Rare': 0 } }
 ];
 let ascDefaultSlots = ascDefaultDefs.map(function (d) { return d.rates; });
 let ascSlots = JSON.parse(JSON.stringify(ascDefaultSlots));
 
 function loadAscRates() {
   try {
-    let saved = JSON.parse(localStorage.getItem('customRatesAsc'));
+    let saved = JSON.parse(localStorage.getItem('customRatesAsc2'));
     if (Array.isArray(saved) && saved.length === ascDefaultSlots.length) {
       let ok = true;
       for (let i = 0; i < saved.length; i++) {
@@ -215,10 +215,10 @@ let SETS = {
   'asc': {
     id: 'asc',
     name: 'Ascended Heroes',
-    cost: 150,
+    cost: 100,
     packImage: 'https://tse2.mm.bing.net/th/id/OIP.jMhsGp9APOaSzVZVII2dRAAAAA?r=0&rs=1&pid=ImgDetMain&o=7&rm=3',
     packLabel: 'Ascended<br>Heroes',
-    rarityKey: 'customRatesAsc'
+    rarityKey: 'customRatesAsc2'
   }
 };
 
@@ -714,6 +714,7 @@ async function runQueue() {
     });
   }
   queueRunning = false;
+  cloudChanged();
 }
 
 function packValueText() {
@@ -971,6 +972,75 @@ function clearCollection() {
 }
 
 
+
+// ---------- Leaderboard numbers (used by cloud.js) ----------
+
+// Every card key that belongs to a set (cards plus its energies)
+function setKeys(setId) {
+  let table = tableFor(setId);
+  let out = {};
+  for (let r in table) {
+    for (let i = 0; i < table[r].length; i++) { out[table[r][i]] = true; }
+  }
+  let list = setId === 'asc' ? ascEnergies : energies;
+  for (let i = 0; i < list.length; i++) { out[(setId === 'asc' ? 'energy-asc-' : 'energy-') + list[i].name] = true; }
+  return out;
+}
+
+// Numbers shown on the leaderboard. Fields that are not known yet are left out.
+function leaderStats() {
+  let data = loadCollection();
+  let keys = Object.keys(data.cards);
+  let out = { packs: data.packs || 0 };
+  let value = 0;
+  let pending = 0;
+  let best = null;
+  for (let i = 0; i < keys.length; i++) {
+    let card = data.cards[keys[i]];
+    if (card.rarity === 'Energy') { continue; }
+    let id = priceIdFromUrl(card.img || keys[i]);
+    if (!id) { continue; }
+    if (priceCache[id]) {
+      let aud = priceCache[id].eur * eurToAud;
+      value += aud * card.count;
+      if (!best || aud > best.price) {
+        best = { key: keys[i], img: card.img || keys[i], rarity: card.rarity, price: Math.round(aud * 100) / 100 };
+      }
+    } else if (!failedIds[id]) {
+      pending++;
+    }
+  }
+  if (pending === 0) {
+    out.value = Math.round(value * 100) / 100;
+    if (best) { out.best = best; }
+  }
+  if (setReady('30th')) {
+    let all = setKeys('30th');
+    let n = 0;
+    for (let i = 0; i < keys.length; i++) { if (all[keys[i]]) { n++; } }
+    out.o30 = n;
+    out.t30 = Object.keys(all).length;
+  }
+  if (ascLoaded) {
+    let all = setKeys('asc');
+    let n = 0;
+    for (let i = 0; i < keys.length; i++) { if (all[keys[i]]) { n++; } }
+    out.oAsc = n;
+    out.tAsc = Object.keys(all).length;
+  }
+  return out;
+}
+
+// Looks up prices for every card the player owns (so the leaderboard value is complete)
+function queueOwnedPrices() {
+  let data = loadCollection();
+  for (let key in data.cards) {
+    let card = data.cards[key];
+    if (card.rarity === 'Energy') { continue; }
+    let id = priceIdFromUrl(card.img || key);
+    if (id && !isFresh(id) && !failedIds[id]) { queuePrice(id); }
+  }
+}
 
 // ---------- Online saving hooks (used by cloud.js) ----------
 
@@ -1339,8 +1409,8 @@ function binderJump(value) {
 }
 
 function showView(name) {
-  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view', market: 'market-view' };
-  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades', market: 'tab-market' };
+  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view', market: 'market-view', board: 'board-view' };
+  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades', market: 'tab-market', board: 'tab-board' };
   if (!views[name]) { name = 'collection'; }
   for (let v in views) {
     let el = document.getElementById(views[v]);
@@ -1352,13 +1422,14 @@ function showView(name) {
   if (name === 'binder') { renderBinder(); }
   if (name === 'trades' && window.renderTrades) { window.renderTrades(); }
   if (name === 'market' && window.renderMarket) { window.renderMarket(); }
+  if (name === 'board' && window.renderBoard) { window.renderBoard(); }
 }
 
 function loadView() {
   let name = 'collection';
   try {
     let saved = localStorage.getItem(viewStoreKey);
-    if (saved === 'binder' || saved === 'trades' || saved === 'market') { name = saved; }
+    if (saved === 'binder' || saved === 'trades' || saved === 'market' || saved === 'board') { name = saved; }
   } catch (e) {}
   showView(name);
 }
@@ -1741,16 +1812,27 @@ function buildAscItems() {
   }];
   let used = {};
   let chance = ascSlots[5]['God pack %'];
-  let hits = ascSlots[6];
-  let god = chance > 0 && Math.random() * 100 < chance && pickRarity(hits, ascByRarity) !== null;
+  let god = chance > 0 && Math.random() * 100 < chance;
   if (god) {
-    for (let i = 0; i < 9; i++) {
-      let rarity = pickRarity(hits, ascByRarity);
-      let url = pickUnique(ascByRarity, rarity, used);
-      items.push({ html: cardImage(url), rarity: rarity, key: url, img: url, cardId: priceIdFromUrl(url) });
+    // A real god pack: every slot (energy slot too) is a big hit, nothing like a double rare or IR.
+    let hits = [];
+    for (let r in ascSlots[6]) {
+      let n = Math.round(ascSlots[6][r]);
+      if (!(n > 0) || !ascByRarity[r]) { continue; }
+      n = Math.min(n, ascByRarity[r].length);
+      for (let i = 0; i < n; i++) {
+        let url = pickUnique(ascByRarity, r, used);
+        hits.push({ html: cardImage(url), rarity: r, key: url, img: url, cardId: priceIdFromUrl(url) });
+      }
     }
-    godNow = true;
-    return items;
+    if (hits.length > 0) {
+      for (let i = hits.length - 1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        let t = hits[i]; hits[i] = hits[j]; hits[j] = t;
+      }
+      godNow = true;
+      return hits;
+    }
   }
   for (let d = 0; d < 5; d++) {
     let def = ascDefaultDefs[d];
@@ -1820,7 +1902,7 @@ function openPack() {
   loadPackPrices(items);
   if (godNow) {
     playHit('Mega Hyper Rare');
-    document.getElementById('info').innerText = 'GOD PACK! Every card in it is a hit. Swipe across the top to rip it open.';
+    document.getElementById('info').innerText = 'GOD PACK! Every card in it is a big hit. Swipe across the top to rip it open.';
   }
 }
 
@@ -2032,6 +2114,7 @@ async function loadCards() {
   }
   preloadAll(allUrls);
   checkRewards();
+  queueOwnedPrices();
   loadAsc();
 }
 
@@ -2126,6 +2209,7 @@ async function loadAsc() {
   }
   renderCollection();
   checkRewards();
+  queueOwnedPrices();
 }
 
 // ---------- Choosing a set ----------
@@ -2216,7 +2300,7 @@ function devDefaultsFor(setId) { return setId === 'asc' ? ascDefaultSlots : defa
 function saveRates() {
   try {
     localStorage.setItem('customRates', JSON.stringify(slots));
-    localStorage.setItem('customRatesAsc', JSON.stringify(ascSlots));
+    localStorage.setItem('customRatesAsc2', JSON.stringify(ascSlots));
   } catch (e) {}
 }
 
@@ -2269,7 +2353,7 @@ function showLogin() {
 function effectiveText(slotIndex, rarity) {
   let rates = devSlotsFor(devSet)[slotIndex];
   let table = tableFor(devSet);
-  if (devSet === 'asc' && slotIndex === 5) { return ''; }
+  if (devSet === 'asc' && (slotIndex === 5 || slotIndex === 6)) { return ''; }
   let sum = 0;
   for (let r in rates) {
     if (rates[r] > 0 && table[r] && table[r].length > 0) { sum += rates[r]; }
@@ -2359,7 +2443,7 @@ function showDevPanel() {
   document.getElementById('dev-reset').onclick = function () {
     if (devSet === 'asc') {
       ascSlots = JSON.parse(JSON.stringify(ascDefaultSlots));
-      try { localStorage.removeItem('customRatesAsc'); } catch (e) {}
+      try { localStorage.removeItem('customRatesAsc2'); } catch (e) {}
     } else {
       slots = JSON.parse(JSON.stringify(defaultSlots));
       try { localStorage.removeItem('customRates'); } catch (e) {}

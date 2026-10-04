@@ -3,7 +3,7 @@
 //  - The Players tab of the dev panel (admins only) shows and edits player info.
 import { db, me, pushNow } from './cloud.js';
 import {
-  collection, doc, getDoc, getDocs, addDoc, updateDoc, onSnapshot, query, where, orderBy, limit
+  collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, deleteDoc, onSnapshot, query, where, orderBy, limit
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 const MAX_COINS = 10000000;
@@ -252,6 +252,11 @@ async function loadList() {
     adm.users = [];
     snap.forEach(function (d) { adm.users.push({ uid: d.id, data: d.data() }); });
     adm.users.sort(function (a, b) { return (b.data.updated || 0) - (a.data.updated || 0); });
+    adm.hidden = {};
+    try {
+      let ex = await getDocs(collection(db, 'lbExcluded'));
+      ex.forEach(function (d) { adm.hidden[d.id] = true; });
+    } catch (e) {}
     adm.view = 'list';
     drawList();
     loadBank();
@@ -317,7 +322,7 @@ function drawList() {
     let name = String(u.data.name || '(no name)');
     if (adm.filter && name.toLowerCase().indexOf(adm.filter) === -1) { continue; }
     let unique = Object.keys(parseCards(u.data.cardsJson)).length;
-    rows += '<tr data-act="open" data-uid="' + esc(u.uid) + '"><td>' + esc(name) + '</td><td>' + (u.data.coins || 0).toLocaleString() +
+    rows += '<tr data-act="open" data-uid="' + esc(u.uid) + '"><td>' + esc(name) + ((adm.hidden && adm.hidden[u.uid]) ? ' <span class="dev-note">(hidden from leaderboard)</span>' : '') + '</td><td>' + (u.data.coins || 0).toLocaleString() +
       '</td><td>' + (u.data.packs || 0) + '</td><td>' + unique + '</td><td>' + esc(fmtTime(u.data.updated)) + '</td></tr>';
   }
   adm.root.innerHTML = '<div id="adm-bank"></div><div class="dev-note">' + adm.users.length + ' player(s). Click one to see everything about them.</div>' +
@@ -353,6 +358,10 @@ async function openUser(uid) {
     let s = await getDocs(query(collection(db, 'users', uid, 'adminOps'), orderBy('t', 'desc'), limit(20)));
     s.forEach(function (d) { out.ops.push(d.data()); });
   } catch (e) { out.errors.push('admin changes'); }
+  try {
+    let ex = await getDoc(doc(db, 'lbExcluded', uid));
+    out.hidden = ex.exists();
+  } catch (e) { out.hidden = false; }
   adm.detail = out;
   drawDetail();
 }
@@ -483,6 +492,7 @@ function drawDetail() {
     '<input class="dev-input" id="adm-qty" type="number" min="1" value="1" style="width:80px"> ' +
     '<button class="dev-btn" data-act="sendcards">' + (adm.mode === 'give' ? 'Give' : 'Take') + '</button> <span class="dev-note">' + esc(pickText) + '</span></div>' +
     pickerHtml(list) +
+    '<div class="adm-edit"><button class="dev-btn' + (d.hidden ? '' : ' dev-ghost') + '" data-act="lbtoggle">' + (d.hidden ? 'Hidden from leaderboard (click to show)' : 'Hide from leaderboard') + '</button></div>' +
     '<div class="adm-edit"><button class="dev-btn adm-danger" data-act="reset">Reset this player</button></div>' +
     '<div class="dev-msg" id="adm-msg"></div>' +
 
@@ -552,6 +562,18 @@ async function adminClick(e) {
     if (!confirm((adm.mode === 'give' ? 'Give ' : 'Take ') + n + 'x ' + cardLabel(p.key) + ' ' + (adm.mode === 'give' ? 'to ' : 'from ') + (adm.detail.user.name || 'this player') + '?')) { return; }
     try { await sendOp({ type: 'cards', items: [item] }); openUser(adm.uid); setTimeout(function () { msg('Queued.', true); }, 600); }
     catch (err) { msg('Could not queue that. Check the database rules.'); }
+  }
+  else if (act === 'lbtoggle') {
+    try {
+      if (adm.detail.hidden) {
+        await deleteDoc(doc(db, 'lbExcluded', adm.uid));
+      } else {
+        await setDoc(doc(db, 'lbExcluded', adm.uid), { name: adm.detail.user.name || '', by: adm.me.uid, t: Date.now() });
+      }
+      adm.detail.hidden = !adm.detail.hidden;
+      drawDetail();
+      msg(adm.detail.hidden ? 'Hidden from the leaderboard.' : 'Shown on the leaderboard again.', true);
+    } catch (err) { msg('Could not change that. Publish the new database rules first.'); }
   }
   else if (act === 'reset') {
     let name = adm.detail.user.name || 'this player';

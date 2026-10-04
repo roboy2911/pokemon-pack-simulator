@@ -100,6 +100,15 @@ async function pushNow() {
     settledJson: JSON.stringify(data.settled || {}),
     updated: Date.now()
   });
+  // Public leaderboard numbers. A failure here must never stop the normal save.
+  try {
+    if (typeof leaderStats === 'function') {
+      let stats = leaderStats();
+      stats.name = userName;
+      stats.updated = Date.now();
+      await setDoc(doc(db, 'leaderboard', user.uid), stats, { merge: true });
+    }
+  } catch (e) {}
   setStatus('Saved online');
 }
 
