@@ -101,7 +101,7 @@ let sortMode = 'price';
 let sortStoreKey = 'pokemonPackSort';
 
 // Only pictures from these sites are accepted when importing a backup
-let allowedImageHosts = ['assets.tcgdex.net', 'images.carddex.dev', 'cardgamer.com', 'pkmncards.com', 'archives.bulbagarden.net'];
+let allowedImageHosts = ['assets.tcgdex.net', 'images.carddex.dev', 'cardgamer.com', 'pkmncards.com', 'archives.bulbagarden.net', 'images.pokemontcg.io'];
 
 // Holo strength per rarity: 0 = none, 1 = maximum. 0.8 and above also get sparkles.
 let holoLevels = {
@@ -282,7 +282,7 @@ let SETS = {
     packLabel: 'Team<br>Up',
     rarityKey: 'customRatesTu',
     tcg: 'sm9', imgPath: 'sm/sm9', count: 196, mainCount: 181,
-    imgRe: /\/sm9\/(\d{3})\//, cacheKey: 'pokemonTuCards_v1', energyPrefix: 'energy-tu-',
+    imgRe: /\/sm9\/(\d{1,3})[\/.]/, cacheKey: 'pokemonTuCards_v2', energyPrefix: 'energy-tu-',
     pageBonus: null, rarityBonus: null
   }
 };
@@ -664,8 +664,8 @@ function priceIdFromUrl(url) {
   let id = null;
   let asc = url.match(/\/me02\.5\/(\d{3})\//);
   if (asc) { return 'me02.5-' + asc[1]; }
-  let tu = url.match(/\/sm9\/(\d{3})\//);
-  if (tu) { return 'sm9-' + tu[1]; }
+  let tu = url.match(/\/sm9\/(\d{1,3})[\/.]/);
+  if (tu) { return 'sm9-' + tu[1].padStart(3, '0'); }
   let main = url.match(/\/30th\/(\d{3})\//);
   if (main) {
     id = '30c-' + main[1];
@@ -2303,14 +2303,17 @@ function ascEur(card) {
   return v;
 }
 
+// Older sets number their cards 1, 2, 3 instead of 001, 002, 003, so both spellings are tried
 async function getTgCard(tcg, padded) {
-  try {
-    let res = await fetch('https://api.tcgdex.net/v2/en/cards/' + tcg + '-' + padded);
-    if (!res.ok) { return null; }
-    return await res.json();
-  } catch (e) {
-    return null;
+  let names = [padded];
+  if (padded.charAt(0) === '0') { names.push(String(Number(padded))); }
+  for (let i = 0; i < names.length; i++) {
+    try {
+      let res = await fetch('https://api.tcgdex.net/v2/en/cards/' + tcg + '-' + names[i]);
+      if (res.ok) { return await res.json(); }
+    } catch (e) {}
   }
+  return null;
 }
 
 async function loadTG(setId) {
@@ -2343,6 +2346,7 @@ async function loadTG(setId) {
         let card = results[j];
         if (card && card.rarity) {
           info[batch[j]] = { r: normRarity(card.rarity, setId), e: ascEur(card) };
+          if (typeof card.image === 'string' && /^https:\/\/assets\.tcgdex\.net\//.test(card.image)) { info[batch[j]].i = card.image; }
         }
       }
     }
@@ -2367,6 +2371,11 @@ async function loadTG(setId) {
     let c = info[padded];
     if (!c) { continue; }
     let url = 'https://assets.tcgdex.net/en/' + cfg.imgPath + '/' + padded + '/low.webp';
+    if (c.i) {
+      url = c.i + '/low.webp';
+    } else if (setId === 'tu') {
+      url = 'https://images.pokemontcg.io/sm9/' + n + '.png';
+    }
     if (!table[c.r]) { table[c.r] = []; }
     table[c.r].push(url);
     urls.push(url);
@@ -2379,6 +2388,7 @@ async function loadTG(setId) {
   if (setId === 'asc') { ascByRarity = table; ascLoaded = true; }
   if (setId === 'tu') { tuByRarity = table; tuLoaded = true; }
   cfg.loading = false;
+  fixOwnedKeys(setId);
   if (curSet === setId) {
     document.getElementById('info').innerText = 'Ready! Click Open Pack.';
     preloadAll(urls);
@@ -2386,6 +2396,38 @@ async function loadTG(setId) {
   renderCollection();
   checkRewards();
   queueOwnedPrices();
+}
+
+// If a card was saved under a different picture address than the one the set uses now, move it to the right one
+function fixOwnedKeys(setId) {
+  let cfg = SETS[setId];
+  let table = tableFor(setId);
+  let byNum = {};
+  let valid = {};
+  for (let r in table) {
+    for (let i = 0; i < table[r].length; i++) {
+      let m = table[r][i].match(cfg.imgRe);
+      if (m) { byNum[Number(m[1])] = { url: table[r][i], rarity: r }; }
+      valid[table[r][i]] = true;
+    }
+  }
+  let data = loadCollection();
+  let changed = false;
+  for (let key in data.cards) {
+    if (cardSet(key) !== setId || key.indexOf('energy-') === 0 || valid[key]) { continue; }
+    let m = key.match(cfg.imgRe);
+    if (!m) { continue; }
+    let target = byNum[Number(m[1])];
+    if (!target) { continue; }
+    let old = data.cards[key];
+    delete data.cards[key];
+    if (!data.cards[target.url]) {
+      data.cards[target.url] = { count: 0, rarity: target.rarity, img: target.url, name: '', color: '' };
+    }
+    data.cards[target.url].count += old.count;
+    changed = true;
+  }
+  if (changed) { saveCollection(data); }
 }
 
 function loadAsc() { return loadTG('asc'); }

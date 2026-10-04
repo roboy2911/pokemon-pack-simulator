@@ -143,7 +143,7 @@ function fmtTime(t) {
 
 function cardLabel(key) {
   key = String(key || '');
-  let tu = key.match(/\/sm9\/(\d{3})\//);
+  let tu = key.match(/\/sm9\/(\d{1,3})[\/.]/);
   if (tu) { return 'TU #' + Number(tu[1]); }
   if (key.indexOf('energy-tu-') === 0) { return key.slice(10) + ' Energy'; }
   let a = key.match(/\/me02\.5\/(\d{3})\//);
