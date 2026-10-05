@@ -423,6 +423,7 @@ async function placeBid(id) {
   busy = false;
   delete ui.bids[id];
   logAuction('auction_bid', { k: a.card.key, amount: amount, seller: a.sellerName || '' });
+  if (window.questEvent) { window.questEvent('bid'); }
   $('info').innerText = 'Bid placed: ' + amount.toLocaleString() + ' coins on ' + label(a.card.key) + '.';
   runProcess();
 }

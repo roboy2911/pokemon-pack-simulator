@@ -2,9 +2,9 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {
   getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  signOut, updateProfile, sendPasswordResetEmail
+  signOut, updateProfile, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, deleteUser
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, addDoc, collection } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyA95Rtq8utQKsolyt-F7rapba5EyVQ-K58',
@@ -39,6 +39,26 @@ const $ = function (id) { return document.getElementById(id); };
 
 function safeName(text) {
   return String(text || '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 20);
+}
+
+// ----- Username filter -----
+// Blocks the most common rude names. It cannot catch everything, so admins can still change names.
+let badSevere = ['fuck', 'shit', 'cunt', 'bitch', 'nigg', 'fagg', 'retard', 'whore', 'slut', 'nazi', 'hitler', 'pussy', 'penis', 'vagina', 'porn', 'kkk', 'asshole', 'bastard', 'twat'];
+let badExact = ['dick', 'cock', 'cum', 'sex', 'ass', 'anus', 'tit', 'tits', 'rape', 'rapist', 'wank', 'wanker', 'boob', 'boobs', 'fag'];
+
+function badName(name) {
+  let s = String(name || '').toLowerCase();
+  let map = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's' };
+  s = s.replace(/[0134578@$]/g, function (c) { return map[c]; });
+  let letters = s.replace(/[^a-z]/g, '');
+  let squashed = letters.replace(/(.)\1+/g, '$1');
+  let trimmed = letters.replace(/(.)\1{2,}/g, '$1$1');
+  for (let i = 0; i < badSevere.length; i++) {
+    let w = badSevere[i];
+    if (letters.indexOf(w) !== -1 || trimmed.indexOf(w) !== -1) { return true; }
+    if (!/(.)\1/.test(w) && squashed.indexOf(w) !== -1) { return true; }
+  }
+  return badExact.indexOf(letters) !== -1 || badExact.indexOf(squashed) !== -1;
 }
 
 function setStatus(text) {
@@ -205,6 +225,7 @@ async function ensureUsername() {
     }
     let pick = prompt('The username "' + userName + '" is not available. Choose a new one (letters, numbers, _):');
     let n = safeName(pick);
+    if (badName(n)) { n = ''; }
     if (n.length < 3) { n = (safeName(userName) + 'player').slice(0, 14) + Math.floor(100 + Math.random() * 900); }
     userName = n;
     lower = n.toLowerCase();
@@ -226,13 +247,109 @@ function showAccount() {
       '<div class="dev-note">' + esc(user.email || '') + '</div>' +
       '<div class="dev-msg" id="acct-status" style="color:#5a554c">' + esc(status) + '</div>' +
       '<button class="dev-btn" id="acct-out">Sign out</button> ' +
-      '<button class="dev-btn dev-ghost" id="acct-close">Close</button>';
+      '<button class="dev-btn dev-ghost" id="acct-close">Close</button>' +
+      '<div class="acct-links"><a href="#" id="acct-del">Delete my account</a></div>';
     $('acct-out').onclick = doSignOut;
     $('acct-close').onclick = closeBox;
+    $('acct-del').onclick = function (e) { e.preventDefault(); showDelete(); };
   } else {
     showForm();
   }
   openBox();
+}
+
+// ----- Deleting your account -----
+
+// Anything still in progress (listings, auctions, trades) holds cards or coins, so it must be finished first
+async function unfinishedThings() {
+  let found = [];
+  let uid = user.uid;
+  async function docs(col, field, op) {
+    let snap = await getDocs(query(collection(db, col), where(field, op, uid)));
+    let out = [];
+    snap.forEach(function (d) { out.push(d.data()); });
+    return out;
+  }
+  if ((await docs('listings', 'seller', '==')).some(function (l) { return l.status === 'open' || !l.sellerDone; })) { found.push('a Market listing you have not finished'); }
+  if ((await docs('listings', 'buyer', '==')).some(function (l) { return !l.buyerDone; })) { found.push('a Market purchase that has not been collected'); }
+  if ((await docs('auctions', 'seller', '==')).some(function (a) { return a.status === 'open' || !a.sellerDone; })) { found.push('an auction you have not finished'); }
+  if ((await docs('auctions', 'bidderIds', 'array-contains')).some(function (a) { return a.status === 'open' || (a.status === 'sold' && a.bidder === uid && !a.winnerDone); })) { found.push('an auction you are bidding in'); }
+  if ((await docs('trades', 'from', '==')).some(function (t) { return t.status === 'open' || !t.fromDone; })) { found.push('a trade offer you sent'); }
+  if ((await docs('trades', 'to', '==')).some(function (t) { return t.status !== 'open' && !t.toDone; })) { found.push('a trade you have not collected'); }
+  return found;
+}
+
+function showDelete() {
+  $('acct-box').innerHTML =
+    '<h3>Delete account</h3>' +
+    '<div class="dev-note">This permanently deletes your online save (cards, coins, binders), your username and your leaderboard entry. It cannot be undone. Finish or cancel any listings, auctions and trade offers first. A record of past activity (what you did, not your email) stays in the game history.</div>' +
+    '<input class="dev-input" id="del-name" placeholder="Type your username to confirm" autocomplete="off">' +
+    '<input class="dev-input" id="del-pass" type="password" placeholder="Your password" autocomplete="current-password">' +
+    '<div class="dev-msg" id="del-msg"></div>' +
+    '<button class="dev-btn adm-danger" id="del-go">Delete my account</button> ' +
+    '<button class="dev-btn dev-ghost" id="del-cancel">Cancel</button>';
+  $('del-cancel').onclick = showAccount;
+  $('del-go').onclick = doDelete;
+}
+
+async function doDelete() {
+  let msg = $('del-msg');
+  msg.style.color = '#b3261e';
+  if (!user) { return; }
+  if ($('del-name').value.trim().toLowerCase() !== userName.toLowerCase()) { msg.textContent = 'Type your username exactly to confirm.'; return; }
+  let pass = $('del-pass').value;
+  if (!pass) { msg.textContent = 'Enter your password.'; return; }
+  $('del-go').disabled = true;
+  msg.style.color = '#5a554c';
+  msg.textContent = 'Checking...';
+  try {
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, pass));
+  } catch (e) {
+    msg.style.color = '#b3261e';
+    msg.textContent = friendlyError(e);
+    $('del-go').disabled = false;
+    return;
+  }
+  try {
+    let found = await unfinishedThings();
+    if (found.length) {
+      msg.style.color = '#b3261e';
+      msg.textContent = 'Not yet. You still have ' + found.join(', ') + '. Finish or cancel it, then try again.';
+      $('del-go').disabled = false;
+      return;
+    }
+  } catch (e) {
+    msg.style.color = '#b3261e';
+    msg.textContent = 'Could not check your listings and trades (offline?). Nothing was deleted.';
+    $('del-go').disabled = false;
+    return;
+  }
+  msg.textContent = 'Deleting...';
+  let uid = user.uid;
+  let lower = userName.toLowerCase();
+  // stop saving so nothing is written back
+  ready = false;
+  cloudPush = null;
+  clearTimeout(pushTimer);
+  try {
+    try { await deleteDoc(doc(db, 'leaderboard', uid)); } catch (e) {}
+    try { await deleteDoc(doc(db, 'usernames', lower)); } catch (e) {}
+    await deleteDoc(doc(db, 'users', uid));
+    await deleteUser(user);
+  } catch (e) {
+    msg.style.color = '#b3261e';
+    msg.textContent = 'Could not finish deleting (' + ((e && e.code) || 'error') + '). Sign out and in again, then retry.';
+    $('del-go').disabled = false;
+    ready = true;
+    cloudPush = schedulePush;
+    return;
+  }
+  try { localStorage.removeItem('pokemonPackLinkedUid'); } catch (e) {}
+  window.dispatchEvent(new Event('cloud-out'));
+  applySaveData(null);
+  closeBox();
+  let info = $('info');
+  if (info) { info.innerText = 'Your account was deleted.'; }
 }
 
 function showForm() {
@@ -272,6 +389,7 @@ function showForm() {
     let pass = $('acct-pass').value;
     let name = up ? safeName($('acct-name').value) : '';
     if (up && name.length < 3) { msg.textContent = 'Username needs at least 3 letters, numbers or _.'; return; }
+    if (up && badName(name)) { msg.textContent = 'Please choose a different username.'; return; }
     if (!email || !pass) { msg.textContent = 'Fill in your email and password.'; return; }
     msg.style.color = '#5a554c';
     msg.textContent = 'One moment...';

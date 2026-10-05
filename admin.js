@@ -183,6 +183,7 @@ function describeLog(e) {
   if (t === 'sellAll') { return 'Sold ' + e.n + ' spare cards for ' + e.coins + ' coins'; }
   if (t === 'daily') { return 'Claimed daily reward: ' + e.coins + ' coins (day ' + e.streak + ')'; }
   if (t === 'reward') { return 'Reward ' + e.kind + ': ' + e.coins + ' coins'; }
+  if (t === 'quest') { return 'Quest ' + e.id + ' claimed: ' + e.coins + ' coins'; }
   if (t === 'login') { return 'Signed in'; }
   if (t === 'trade_sent') { return 'Sent a trade to ' + e.toName + ': gives ' + itemsText(e.give) + ' + ' + (e.giveCoins || 0) + ' coins, wants ' + itemsText(e.get) + ' + ' + (e.getCoins || 0) + ' coins'; }
   if (t === 'trade_accept') { return 'Accepted a trade from ' + e.fromName + ': paid ' + itemsText(e.give) + ' + ' + (e.giveCoins || 0) + ' coins'; }

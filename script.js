@@ -1444,6 +1444,7 @@ function sellDuplicate(key) {
   }
   saveCollection(data);
   addCoins(value);
+  qe('sell');
   playTone(660, 0, 0.1, 0.18, 'triangle');
   logEvent('sell', { k: key, r: card.rarity, coins: value });
   renderCollection();
@@ -1475,6 +1476,7 @@ function sellAllDuplicates() {
   }
   saveCollection(data);
   addCoins(total);
+  qe('sell', sold);
   playTone(660, 0, 0.1, 0.18, 'triangle');
   playTone(990, 0.1, 0.16, 0.18, 'triangle');
   document.getElementById('info').innerText = 'Sold ' + sold + ' spare cards for ' + total + ' coins.';
@@ -1727,18 +1729,18 @@ let ascRarityBonus = {
   'Mega Hyper Rare': 8000
 };
 // Team Up rewards (a Team Up pack costs 3000 coins, so these are large)
-let tuPageBonus = { 'Main set': 1500, 'Secret rares': 20000, 'Energies': 500 };
+let tuPageBonus = { 'Main set': 500, 'Secret rares': 6700, 'Energies': 170 };
 let tuRarityBonus = {
-  'Energy': 500,
-  'Common': 3000,
-  'Uncommon': 3000,
-  'Rare': 3000,
-  'Rare Holo': 6000,
-  'Holo GX': 20000,
-  'Prism Star': 15000,
-  'Ultra Rare': 40000,
-  'Rainbow Rare': 60000,
-  'Secret Rare': 80000
+  'Energy': 170,
+  'Common': 1000,
+  'Uncommon': 1000,
+  'Rare': 1000,
+  'Rare Holo': 2000,
+  'Holo GX': 6700,
+  'Prism Star': 5000,
+  'Ultra Rare': 13000,
+  'Rainbow Rare': 20000,
+  'Secret Rare': 27000
 };
 let rewardNote = '';   // shown after a pack finishes
 
@@ -2050,6 +2052,11 @@ function ripPack() {
       logEvent('pack', { cards: packLog });
     }
     checkRewards();
+    qe('pack');
+    for (let qi = 0; qi < currentItems.length; qi++) {
+      let qr = rarityOrder.indexOf(currentItems[qi].rarity);
+      if (qr !== -1 && qr <= rarityOrder.indexOf('Rare Holo') && currentItems[qi].rarity !== 'Energy') { qe('rare'); break; }
+    }
   }
 
   let myId = packId;
@@ -2945,4 +2952,9 @@ function shareSite() {
   } else {
     say(url);
   }
+}
+
+// Safe call into the daily quests (quests.js may not be loaded)
+function qe(type, n) {
+  if (typeof questEvent === 'function') { questEvent(type, n); }
 }

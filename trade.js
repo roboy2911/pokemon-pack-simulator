@@ -328,6 +328,7 @@ async function sendOffer() {
       created: Date.now(), updated: Date.now()
     });
     let name = draft.friend.name;
+    if (window.questEvent) { window.questEvent('trade'); }
     logTrade('trade_sent', { to: draft.friend.uid, toName: name, give: compact(giveItems_), giveCoins: giveCoins, get: compact(getItems_), getCoins: getCoins });
     draft = emptyDraft();
     renderNew();

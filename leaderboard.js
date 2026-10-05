@@ -1,7 +1,7 @@
 // Leaderboard (Firebase). Loaded as a module after cloud.js.
 // Each player's browser saves a small stats doc (leaderboard/{uid}); admins can hide players (lbExcluded/{uid}).
 import { db, me } from './cloud.js';
-import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { collection, getDocs, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 let ui = { cat: 'packs' };
 let rows = [];
@@ -74,18 +74,38 @@ function draw() {
   let html = '';
   for (let i = 0; i < Math.min(list.length, 50); i++) {
     let r = list[i].r;
-    html += '<tr class="' + (r.uid === c.uid ? 'me' : '') + '"><td class="lb-rank">' + (i + 1) + '</td><td>' + bestImg(r) + esc(String(r.name || '(no name)').slice(0, 30)) + '</td><td class="lb-val">' + esc(show(r)) + '</td></tr>';
+    html += '<tr class="' + (r.uid === c.uid ? 'me' : '') + '"><td class="lb-rank">' + (i + 1) + '</td><td>' + bestImg(r) + '<button class="lb-name" data-uid="' + esc(r.uid) + '">' + esc(String(r.name || '(no name)').slice(0, 30)) + '</button></td><td class="lb-val">' + esc(show(r)) + '</td></tr>';
   }
   let note = '';
   if (hidden[c.uid]) { note = '<div class="dev-note" style="text-align:center">You are hidden from the leaderboard.</div>'; }
   root.innerHTML =
     '<div class="lb-bar"><select class="sort-select" id="lb-cat">' + opts + '</select>' +
-    '<button class="daily-btn" id="lb-refresh">Refresh</button></div>' + note +
+    '<button class="daily-btn" id="lb-refresh">Refresh</button> <button class="daily-btn" id="lb-me">My profile</button></div>' +
+    '<div class="pf-find"><input class="tinput" id="lb-find" placeholder="Find a player by username" maxlength="20"> <button class="daily-btn" id="lb-go">View profile</button></div>' + note +
     (err ? '<div class="dev-msg" style="text-align:center">' + esc(err) + '</div>' : '') +
     (loading ? '<div class="coll-empty">Loading...</div>' : (html ? '<table class="lb-table">' + html + '</table>' : '<div class="coll-empty">Nobody on this board yet. Stats update each time a player saves.</div>')) +
     '<div class="dev-note" style="text-align:center;margin-top:10px">Collection value uses real card prices in A$. Stats update when a player saves online.</div>';
   $('lb-cat').onchange = function () { ui.cat = this.value; draw(); };
   $('lb-refresh').onclick = function () { load(); };
+  $('lb-me').onclick = function () { if (me() && window.openProfile) { window.openProfile(me().uid); } };
+  $('lb-go').onclick = findPlayer;
+  $('lb-find').onkeydown = function (e) { if (e.key === 'Enter') { findPlayer(); } };
+  let names = root.querySelectorAll('.lb-name');
+  for (let i = 0; i < names.length; i++) { names[i].onclick = function () { if (window.openProfile) { window.openProfile(this.dataset.uid); } }; }
+}
+
+async function findPlayer() {
+  let raw = (($('lb-find').value) || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (raw.length < 3) { err = 'Type a username (3 or more letters).'; draw(); return; }
+  try {
+    let u = await getDoc(doc(db, 'usernames', raw));
+    if (!u.exists()) { err = 'No player with that username.'; draw(); return; }
+    err = '';
+    if (window.openProfile) { window.openProfile(u.data().uid); }
+  } catch (e) {
+    err = 'Could not look that up.';
+    draw();
+  }
 }
 
 async function load() {

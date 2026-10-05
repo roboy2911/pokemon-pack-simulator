@@ -49,6 +49,9 @@ function cleanBinders(raw) {
     for (let i = 0; i < out.list.length; i++) { if (out.list[i].id === raw.sel) { out.sel = raw.sel; } }
   }
   if (!out.sel && out.list.length) { out.sel = out.list[0].id; }
+  if (typeof raw.showcase === 'string') {
+    for (let i = 0; i < out.list.length; i++) { if (out.list[i].id === raw.showcase) { out.showcase = raw.showcase; } }
+  }
   return out;
 }
 
@@ -134,7 +137,7 @@ function renderMyBinders() {
   let top = '<div class="mb-bar">' +
     (b.list.length ? '<select class="sort-select" id="mb-select" data-mb="select">' + opts + '</select> ' : '') +
     '<button class="link-btn" data-mb="new">+ New binder</button>' +
-    (binder ? ' <button class="link-btn" data-mb="rename">Rename</button> <button class="link-btn" data-mb="delete">Delete</button>' : '') +
+    (binder ? ' <button class="link-btn" data-mb="rename">Rename</button> <button class="link-btn" data-mb="delete">Delete</button> <button class="link-btn" data-mb="showcase">' + (b.showcase === binder.id ? 'Shown on your profile \u2713' : 'Show on my profile') + '</button>' : '') +
     '</div>';
 
   if (!binder) {
@@ -229,6 +232,7 @@ function mbPlace(slotIndex, key) {
     }
     page[slotIndex] = key;
     mbSlot = null;
+    if (typeof questEvent === 'function') { questEvent('binder'); }
   });
 }
 
@@ -274,6 +278,9 @@ function mbHandleClick(el) {
   if (act === 'new') { mbNew(); }
   else if (act === 'rename') { mbRename(); }
   else if (act === 'delete') { mbDelete(); }
+  else if (act === 'showcase') {
+    mbUpdate(function (b, binder) { b.showcase = b.showcase === binder.id ? '' : binder.id; });
+  }
   else if (act === 'slot') {
     let i = Number(el.dataset.i);
     mbSlot = mbSlot === i ? null : i;

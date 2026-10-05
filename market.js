@@ -338,6 +338,7 @@ async function listCards() {
   refreshGame();
   if (done) {
     logMarket('market_list', { k: key, r: card.rarity, price: price, n: done });
+    if (window.questEvent) { window.questEvent('list'); }
     setMsg('Listed ' + done + ' x ' + label(key) + ' for ' + price.toLocaleString() + ' coins each.', true);
   } else {
     setMsg('Could not list that (' + lastErr + '). Nothing was lost. If it says permission-denied, publish the new database rules.');
