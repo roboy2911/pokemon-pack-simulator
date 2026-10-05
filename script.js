@@ -1398,7 +1398,7 @@ function renderCollection() {
     if (id) {
       price = '<div class="coll-price" data-price-id="' + esc(id) + '">' + esc(priceText(id)) + '</div>';
     }
-    let sell = '<button class="coll-sell" data-sell="' + esc(keys[i]) + '">Sell +' + sellValue(card.rarity, keys[i]) + '</button>';
+    let sell = '<button class="coll-sell" data-sell="' + esc(keys[i]) + '">Sell +' + aud(sellValue(card.rarity, keys[i])) + '</button>';
     let rank = rarityOrder.indexOf(card.rarity);
     if (rank === -1) {
       rank = 99;
@@ -1629,7 +1629,26 @@ function addCoins(amount) {
   updateShop();
 }
 
+// What a card is worth on the real market, in coins (5 coins = A$1). Null while the price is still loading.
+function marketCoins(key) {
+  let id = priceIdFromUrl(key);
+  if (!id || !priceCache[id] || typeof priceCache[id].eur !== 'number') { return null; }
+  return priceCache[id].eur * eurToAud * coinsPerAud;
+}
+
+let quickSellShare = 0.4;   // quick-sell pays this share of the market value, so selling to players pays more
+
+// Quick-sell value in coins: 40% of the market value once the price is known (at least 1 coin).
+// Until then it falls back to the fixed table below.
 function sellValue(rarity, key) {
+  if (rarity !== 'Energy' && key) {
+    let m = marketCoins(key);
+    if (m !== null) { return Math.max(1, Math.round(m * quickSellShare)); }
+  }
+  return tableSellValue(rarity, key);
+}
+
+function tableSellValue(rarity, key) {
   if (key && cardSet(key) === 'bs') {
     let bm = String(key).match(SETS.bs.imgRe);
     if (bm && bsCardSell[Number(bm[1])]) { return bsCardSell[Number(bm[1])]; }

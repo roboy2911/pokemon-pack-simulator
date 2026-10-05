@@ -110,9 +110,15 @@ function stallSignBonus(st) {
 
 // ---------- What things are worth ----------
 
+// What a customer thinks the item is worth: the market value in coins (quick-sell pays only 40% of this).
+// If the price has not loaded yet it is worked back from the fixed quick-sell table.
 function stallFair(it) {
-  if (it.slab) { return slabSellValue(it); }
-  return sellValue(it.rarity, it.key);
+  let m = marketCoins(it.key);
+  if (it.slab) {
+    let mult = typeof gradeMult !== 'undefined' ? (gradeMult[it.grade] || 1) : 1;
+    return Math.max(1, Math.round(m !== null ? m * mult : tableSellValue(it.rarity, it.key) * mult / quickSellShare));
+  }
+  return Math.max(1, Math.round(m !== null ? m : tableSellValue(it.rarity, it.key) / quickSellShare));
 }
 
 function stallSetOf(key) {
