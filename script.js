@@ -465,6 +465,7 @@ function playHit(rarity) {
   if (!tier) {
     return;
   }
+  if (typeof fxReveal === 'function') { fxReveal(tier); }
   if (tier === 1) {
     playTone(1046.5, 0, 0.35, 0.22, 'sine');
     playTone(1318.5, 0.1, 0.4, 0.22, 'sine');
@@ -1285,6 +1286,8 @@ function leaderStats() {
     out.oTu = n;
     out.tTu = Object.keys(all).length;
   }
+  if (typeof achUnlockedIds === 'function') { out.ach = achUnlockedIds(); }
+  if (typeof cosPublic === 'function') { let cp = cosPublic(); out.title = cp.title; out.frame = cp.frame; }
   return out;
 }
 
@@ -1696,8 +1699,8 @@ function binderJump(value) {
 }
 
 function showView(name) {
-  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view', market: 'market-view', auction: 'auction-view', board: 'board-view' };
-  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades', market: 'tab-market', auction: 'tab-auction', board: 'tab-board' };
+  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view', market: 'market-view', auction: 'auction-view', achievements: 'ach-view', shop: 'shop-view', board: 'board-view' };
+  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades', market: 'tab-market', auction: 'tab-auction', achievements: 'tab-ach', shop: 'tab-shop', board: 'tab-board' };
   if (!views[name]) { name = 'collection'; }
   for (let v in views) {
     let el = document.getElementById(views[v]);
@@ -1714,6 +1717,8 @@ function showView(name) {
   if (name === 'trades' && window.renderTrades) { window.renderTrades(); }
   if (name === 'market' && window.renderMarket) { window.renderMarket(); }
   if (name === 'auction' && window.renderAuction) { window.renderAuction(); }
+  if (name === 'achievements' && window.renderAchievements) { window.renderAchievements(); }
+  if (name === 'shop' && window.renderShop) { window.renderShop(); }
   if (name === 'board' && window.renderBoard) { window.renderBoard(); }
 }
 
@@ -1721,7 +1726,7 @@ function loadView() {
   let name = 'collection';
   try {
     let saved = localStorage.getItem(viewStoreKey);
-    if (saved === 'binder' || saved === 'trades' || saved === 'market' || saved === 'auction' || saved === 'board') { name = saved; }
+    if (saved === 'binder' || saved === 'trades' || saved === 'market' || saved === 'auction' || saved === 'achievements' || saved === 'shop' || saved === 'board') { name = saved; }
   } catch (e) {}
   showView(name);
 }
@@ -2086,6 +2091,20 @@ function ripPack() {
       let qr = rarityOrder.indexOf(currentItems[qi].rarity);
       if (qr !== -1 && qr <= rarityOrder.indexOf('Rare Holo') && currentItems[qi].rarity !== 'Energy') { qe('rare'); break; }
     }
+    // pull tiers (for achievements) and the live pull feed
+    let topTier = 0;
+    let posted = false;
+    for (let qi = 0; qi < currentItems.length; qi++) {
+      let tr = hitTiers[currentItems[qi].rarity] || 0;
+      if (tr > topTier) { topTier = tr; }
+      // one feed post per pack, so a god pack does not flood it
+      if (tr >= 3 && !posted && window.postPull) { window.postPull(currentItems[qi]); posted = true; }
+    }
+    if (typeof achEvent === 'function') {
+      if (topTier >= 2) { achEvent('tier2'); }
+      if (topTier >= 3) { achEvent('tier3'); }
+      if (godNow) { achEvent('god'); }
+    }
   }
 
   let myId = packId;
@@ -2114,6 +2133,7 @@ function ripPack() {
     }
     sealedPack.remove();
     showProgress();
+    if (!godNow && currentItems.length) { playHit(currentItems[0].rarity); }
   }, 950);
 }
 

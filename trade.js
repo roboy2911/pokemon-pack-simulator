@@ -414,6 +414,7 @@ async function processAll() {
       await pushNow();
       logTrade('trade_paid', { id: id, status: t.status, got: compact(mapToItems(itemsToMap(items))), gotCoins: coinsClamp(coinsAmt) });
       if (t.status === 'accepted') {
+        if (window.achEvent) { window.achEvent('tradedone'); }
         notes.push('Trade with ' + (role === 'to' ? t.fromName : t.toName) + ' complete!');
       } else {
         notes.push('Your offer to ' + t.toName + ' came back (' + t.status + ').');

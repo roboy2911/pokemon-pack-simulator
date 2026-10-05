@@ -469,6 +469,7 @@ async function processAll() {
       let did = await pay('aucsell:' + id, function () { coins = coins + got; });
       if (did) {
         logAuction('auction_sold', { k: a.card.key, price: price, fee: feeFor(price), to: a.bidderName || '' });
+        if (window.achEvent) { window.achEvent('sold'); }
         notes.push('Your ' + label(a.card.key) + ' sold at auction for ' + got.toLocaleString() + ' coins.');
       }
     } else if (card) {
@@ -508,6 +509,7 @@ async function processAll() {
         let did = await pay('aucwin:' + id, function () { addOne(a.card.key, card, scoreOfCard(card)); });
         if (did) {
           logAuction('auction_won', { k: a.card.key, price: num(a.bid) });
+          if (window.achEvent) { window.achEvent('win'); }
           notes.push('You won ' + label(a.card.key) + ' for ' + num(a.bid).toLocaleString() + ' coins!');
         }
       }

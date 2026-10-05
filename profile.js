@@ -14,6 +14,7 @@ function safeUid(uid) { return typeof uid === 'string' && /^[A-Za-z0-9]{1,40}$/.
 function showBoard(on) {
   if ($('board-root')) { $('board-root').style.display = on ? '' : 'none'; }
   if ($('profile-root')) { $('profile-root').style.display = on ? 'none' : ''; }
+  if ($('feed-root')) { $('feed-root').style.display = on ? '' : 'none'; }
 }
 
 function bar(label, o, t) {
@@ -69,13 +70,30 @@ function draw() {
       (num(d.lb.best.price) !== null ? '<div class="q-count">A$' + d.lb.best.price.toFixed(2) + '</div>' : '') + '</div></div>';
   }
   let sets = d.lb ? (bar('30th Celebration', d.lb.o30, d.lb.t30) + bar('Ascended Heroes', d.lb.oAsc, d.lb.tAsc) + bar('Team Up', d.lb.oTu, d.lb.tTu)) : '';
+  let titleText = '';
+  let frameStyle = '';
+  if (d.lb) {
+    let tl = typeof cosItem === 'function' ? cosItem('title', d.lb.title) : null;
+    if (tl && tl.text) { titleText = tl.text; }
+    let fr = typeof cosItem === 'function' ? cosItem('frame', d.lb.frame) : null;
+    if (fr && fr.color === 'rainbow') { frameStyle = ' pf-frame-rainbow'; }
+    else if (fr && fr.color) { frameStyle = '" style="border:3px solid ' + fr.color; }
+  }
+  let badges = '';
+  if (d.lb && Array.isArray(d.lb.ach) && typeof achList !== 'undefined') {
+    for (let i = 0; i < achList.length; i++) {
+      if (d.lb.ach.indexOf(achList[i].id) !== -1) { badges += '<span class="pf-badge" title="' + esc(achList[i].desc) + '">' + esc(achList[i].name) + '</span>'; }
+    }
+  }
   root.innerHTML = back +
-    '<div class="pf-card"><div class="pf-name">' + esc(d.name) + (c && c.uid === state.uid ? ' <span class="q-count">(you)</span>' : '') + '</div>' +
+    '<div class="pf-card' + frameStyle + '"><div class="pf-name">' + esc(d.name) + (c && c.uid === state.uid ? ' <span class="q-count">(you)</span>' : '') + '</div>' +
+    (titleText ? '<div class="pf-title">' + esc(titleText) + '</div>' : '') +
     '<div class="adm-grid">' +
     '<div><b>Packs opened</b><br>' + (d.packs || 0).toLocaleString() + '</div>' +
     '<div><b>Unique cards</b><br>' + Object.keys(d.cards).length.toLocaleString() + '</div>' +
     '<div><b>Collection value</b><br>' + esc(value) + '</div>' +
     '</div>' +
+    (badges ? '<div class="pf-sec">Achievements (' + (d.lb.ach.length) + ' of ' + achList.length + ')</div><div class="pf-badges">' + badges + '</div>' : '') +
     (sets ? '<div class="pf-sec">Set progress</div>' + sets : '') + best + showcaseHtml(d) + '</div>';
 }
 

@@ -425,6 +425,7 @@ async function processAll() {
         saveCoins();
         await pushNow();
         logMarket('market_sold', { k: l.card.key, price: price, fee: feeFor(price), to: l.buyerName || '' });
+        if (window.achEvent) { window.achEvent('sold'); }
         notes.push('Sold ' + label(l.card.key) + ' for ' + got.toLocaleString() + ' coins.');
       }
     } else if (l.status === 'cancelled' || l.status === 'expired') {

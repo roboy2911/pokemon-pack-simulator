@@ -63,6 +63,7 @@ function questProgress(date, q) {
 function questEvent(type, n) {
   if (typeof unlimited !== 'undefined' && unlimited) { return; }
   n = n === undefined ? 1 : n;
+  if (typeof achEvent === 'function') { achEvent(type, n); }
   let date = questDate();
   let changed = false;
   let list = questsFor(date);
@@ -94,6 +95,7 @@ function questClaim(id) {
     saveSettled();
     addCoins(q.reward);
     logEvent('quest', { id: q.id, coins: q.reward });
+    if (typeof achEvent === 'function') { achEvent('quest'); }
     let msg = 'Quest done: +' + q.reward + ' coins.';
     let all = list.every(function (x) { return settled['quest:' + date + ':' + x.id]; });
     if (all && !settled['quest:' + date + ':bonus']) {

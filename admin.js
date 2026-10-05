@@ -335,6 +335,32 @@ function drawBank() {
     '<div class="dev-msg" id="bank-msg"></div>' + (lines || '<div class="tempty">No payouts recorded yet.</div>');
 }
 
+// ----- Announcement banner shown to every player -----
+
+async function loadAnnounce() {
+  try {
+    let s = await getDoc(doc(db, 'announcements', 'current'));
+    adm.ann = s.exists() ? s.data() : { text: '', active: false };
+  } catch (e) {
+    adm.ann = { error: true };
+  }
+  if (adm.view === 'list') { drawAnnounce(); }
+}
+
+function drawAnnounce() {
+  let box = $('adm-announce');
+  if (!box) { return; }
+  if (!adm.ann) { box.innerHTML = '<div class="dev-note">Loading announcement...</div>'; loadAnnounce(); return; }
+  if (adm.ann.error) { box.innerHTML = '<div class="dev-msg">Could not load the announcement. Check the database rules.</div>'; return; }
+  let text = adm.annDraft !== undefined ? adm.annDraft : (adm.ann.text || '');
+  box.innerHTML = '<div class="adm-sec" style="margin-top:6px">Announcement banner</div>' +
+    '<div class="dev-note">' + (adm.ann.active && adm.ann.text ? 'Currently showing to players.' : 'Nothing is showing right now.') + ' Players can close it; posting again shows it to everyone again.</div>' +
+    '<textarea class="dev-input" id="ann-text" maxlength="300" rows="2" placeholder="Message for all players (300 characters max)">' + esc(text) + '</textarea>' +
+    '<div class="adm-edit"><button class="dev-btn" data-act="annpost">Post</button> <button class="dev-btn dev-ghost" data-act="annclear">Remove banner</button></div>' +
+    '<div class="dev-msg" id="ann-msg"></div>';
+  $('ann-text').oninput = function () { adm.annDraft = this.value; };
+}
+
 function drawList() {
   let rows = '';
   for (let i = 0; i < adm.users.length; i++) {
@@ -345,10 +371,11 @@ function drawList() {
     rows += '<tr data-act="open" data-uid="' + esc(u.uid) + '"><td>' + esc(name) + ((adm.hidden && adm.hidden[u.uid]) ? ' <span class="dev-note">(hidden from leaderboard)</span>' : '') + '</td><td>' + (u.data.coins || 0).toLocaleString() +
       '</td><td>' + (u.data.packs || 0) + '</td><td>' + unique + '</td><td>' + esc(fmtTime(u.data.updated)) + '</td></tr>';
   }
-  adm.root.innerHTML = '<div id="adm-bank"></div><div class="dev-note">' + adm.users.length + ' player(s). Click one to see everything about them.</div>' +
+  adm.root.innerHTML = '<div id="adm-bank"></div><div id="adm-announce"></div><div class="dev-note">' + adm.users.length + ' player(s). Click one to see everything about them.</div>' +
     '<input class="dev-input" id="adm-filter" placeholder="Filter by username" value="' + esc(adm.filter) + '">' +
     '<table class="adm-table"><tr><th>Username</th><th>Coins</th><th>Packs</th><th>Unique cards</th><th>Last saved</th></tr>' + rows + '</table>';
   drawBank();
+  drawAnnounce();
   let f = $('adm-filter');
   if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
 }
@@ -579,6 +606,19 @@ async function adminClick(e) {
       }
       openUser(adm.uid); setTimeout(function () { msg('Queued.', true); }, 600); }
     catch (err) { msg('Could not queue that. Check the database rules.'); }
+  }
+  else if (act === 'annpost' || act === 'annclear') {
+    let am = $('ann-msg');
+    let text = act === 'annpost' ? String($('ann-text').value || '').trim().slice(0, 300) : '';
+    if (act === 'annpost' && !text) { am.textContent = 'Type a message first.'; return; }
+    try {
+      await setDoc(doc(db, 'announcements', 'current'), { text: text, active: act === 'annpost', by: adm.me.name || '', updated: Date.now() });
+      adm.ann = { text: text, active: act === 'annpost' };
+      if (act === 'annclear') { adm.annDraft = undefined; }
+      drawAnnounce();
+      let m2 = $('ann-msg');
+      if (m2) { m2.style.color = '#2e7d32'; m2.textContent = act === 'annpost' ? 'Posted.' : 'Removed.'; }
+    } catch (err) { am.textContent = 'Could not save. Check the database rules (announcements).'; }
   }
   else if (act === 'bankrecord') {
     let amt = Math.floor(Number($('bank-amt').value));
