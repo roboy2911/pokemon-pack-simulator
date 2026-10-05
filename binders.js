@@ -170,7 +170,7 @@ function renderMyBinders() {
   let pageOpts = '';
   for (let i = 0; i < binder.pages.length; i++) { pageOpts += '<option value="' + i + '"' + (i === mbPage ? ' selected' : '') + '>Page ' + (i + 1) + '</option>'; }
 
-  let setOpts = [['all', 'All sets'], ['30th', '30th Celebration'], ['asc', 'Ascended Heroes'], ['tu', 'Team Up'], ['pe', 'Prismatic Evolutions'], ['pf', 'Paldean Fates'], ['bs', 'Base Set']].map(function (o) {
+  let setOpts = [['all', 'All sets'], ['30th', '30th Celebration'], ['asc', 'Ascended Heroes'], ['tu', 'Team Up'], ['pe', 'Prismatic Evolutions'], ['pf', 'Paldean Fates']].map(function (o) {
     return '<option value="' + o[0] + '"' + (mbSet === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
   }).join('');
   let rarOpts = '<option>All</option>' + rarityOrder.map(function (r) {

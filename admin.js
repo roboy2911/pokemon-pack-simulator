@@ -482,7 +482,7 @@ function drawDetail() {
   let chips = '';
   let owned = {};
   for (let i = 0; i < keys.length; i++) { owned[cards[keys[i]].rarity] = (owned[cards[keys[i]].rarity] || 0) + 1; }
-  let sets = [['30th', '30th', byRarity], ['asc', 'Ascended Heroes', ascByRarity], ['tu', 'Team Up', tuByRarity], ['pe', 'Prismatic Evolutions', peByRarity], ['pf', 'Paldean Fates', pfByRarity], ['bs', 'Base Set', bsByRarity]];
+  let sets = [['30th', '30th', byRarity], ['asc', 'Ascended Heroes', ascByRarity], ['tu', 'Team Up', tuByRarity], ['pe', 'Prismatic Evolutions', peByRarity], ['pf', 'Paldean Fates', pfByRarity]];
   for (let q = 0; q < sets.length; q++) {
     let own = {};
     for (let i = 0; i < keys.length; i++) {

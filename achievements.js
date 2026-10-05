@@ -39,7 +39,7 @@ function achBestSet() {
   let best = 0;
   let data = loadCollection();
   let keys = Object.keys(data.cards);
-  let sets = [['30th', function () { return setReady('30th'); }], ['asc', function () { return typeof ascLoaded !== 'undefined' && ascLoaded; }], ['tu', function () { return typeof tuLoaded !== 'undefined' && tuLoaded; }], ['pe', function () { return typeof peLoaded !== 'undefined' && peLoaded; }], ['pf', function () { return typeof pfLoaded !== 'undefined' && pfLoaded; }], ['bs', function () { return typeof bsLoaded !== 'undefined' && bsLoaded; }]];
+  let sets = [['30th', function () { return setReady('30th'); }], ['asc', function () { return typeof ascLoaded !== 'undefined' && ascLoaded; }], ['tu', function () { return typeof tuLoaded !== 'undefined' && tuLoaded; }], ['pe', function () { return typeof peLoaded !== 'undefined' && peLoaded; }], ['pf', function () { return typeof pfLoaded !== 'undefined' && pfLoaded; }]];
   for (let q = 0; q < sets.length; q++) {
     if (!sets[q][1]()) { continue; }
     let all = setKeys(sets[q][0]);

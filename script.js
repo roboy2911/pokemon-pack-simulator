@@ -421,7 +421,7 @@ let SETS = {
     packLabel: 'Prismatic<br>Evolutions',
     rarityKey: 'customRatesPe',
     tcg: 'sv08.5', imgPath: 'sv/sv08.5', count: 180, mainCount: 131,
-    imgRe: /\/sv08\.5\/(\d{3})\//, cacheKey: 'pokemonPeCards_v1', packZoom: 1.25, energyPrefix: 'energy-pe-',
+    imgRe: /\/sv08\.5\/(\d{3})\//, cacheKey: 'pokemonPeCards_v1', packZoom: 1.1, energyPrefix: 'energy-pe-',
     pageBonus: null, rarityBonus: null
   },
   'pf': {
@@ -2312,11 +2312,11 @@ function buildStack(items) {
     packH = Math.round(cardW * packRatio);
     if (cover) {
       // zoom into the picture so the pack fills a card-sized area
-      packH = cardH;
-      imgH = Math.round(cardH * cover);
+      packH = Math.round(cardH * 0.86);
+      imgH = Math.round(packH * cover);
       imgW = Math.round(imgH / packRatio);
       offX = -Math.round((imgW - cardW) / 2);
-      offY = -Math.round((imgH - cardH) / 2);
+      offY = -Math.round((imgH - packH) / 2);
     }
   }
   let boxH = Math.max(cardH, packH);
@@ -3153,9 +3153,9 @@ function changeSet(value) {
 function loadSetChoice() {
   try {
     let saved = localStorage.getItem(setStoreKey);
-    if (SETS[saved]) { curSet = saved; }
+    if (SETS[saved] && saved !== 'bs') { curSet = saved; }
     let f = localStorage.getItem(collSetKey);
-    if (f === '30th' || f === 'asc' || f === 'tu' || f === 'pe' || f === 'pf' || f === 'bs') { collSetFilter = f; }
+    if (f === '30th' || f === 'asc' || f === 'tu' || f === 'pe' || f === 'pf') { collSetFilter = f; }
   } catch (e) {}
   let fs = document.getElementById('coll-set');
   if (fs) { fs.value = collSetFilter; }
@@ -3308,7 +3308,7 @@ function showDevPanel() {
     '<button class="dev-tab' + (devSet === 'tu' ? ' on' : '') + '" id="dev-set-tu">Team Up</button>' +
     '<button class="dev-tab' + (devSet === 'pe' ? ' on' : '') + '" id="dev-set-pe">Prismatic Evolutions</button>' +
     '<button class="dev-tab' + (devSet === 'pf' ? ' on' : '') + '" id="dev-set-pf">Paldean Fates</button>' +
-    '<button class="dev-tab' + (devSet === 'bs' ? ' on' : '') + '" id="dev-set-bs">Base Set</button></div>';
+    '</div>';
   for (let i = 0; i < list.length; i++) {
     let title = devSet === 'asc' ? ascDefaultDefs[i].name : (devSet === 'tu' ? tuDefaultDefs[i].name : (devSet === 'pe' ? peDefaultDefs[i].name : (devSet === 'pf' ? pfDefaultDefs[i].name : (devSet === 'bs' ? bsDefaultDefs[i].name : 'Slot ' + (i + 1)))));
     html += '<div class="dev-slot"><div class="dev-slot-title">' + esc(title) + '</div>';
@@ -3332,7 +3332,6 @@ function showDevPanel() {
   document.getElementById('dev-set-tu').onclick = function () { devSet = 'tu'; showDevPanel(); };
   document.getElementById('dev-set-pe').onclick = function () { devSet = 'pe'; showDevPanel(); };
   document.getElementById('dev-set-pf').onclick = function () { devSet = 'pf'; showDevPanel(); };
-  document.getElementById('dev-set-bs').onclick = function () { devSet = 'bs'; showDevPanel(); };
 
   function refreshLabels() {
     box.querySelectorAll('.dev-eff').forEach(function (el) {
@@ -3419,7 +3418,7 @@ setupSwipe();
   let sel = document.getElementById('set-select');
   if (!sel) { return; }
   let warm = function () {
-    ['bs', 'pe', 'pf', 'tu'].forEach(function (id) { if (SETS[id] && !setReady(id)) { loadTG(id); } });
+    ['pe', 'pf', 'tu'].forEach(function (id) { if (SETS[id] && !setReady(id)) { loadTG(id); } });
   };
   sel.addEventListener('focus', warm);
   sel.addEventListener('mousedown', warm);
