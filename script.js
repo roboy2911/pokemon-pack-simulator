@@ -370,7 +370,7 @@ function loadBsRates() {
 }
 loadBsRates();
 
-// Base Set quick-sell values (a pack costs 100 coins). Card number: coins. 4 = Charizard, 2 = Blastoise, 15 = Venusaur
+// Base Set quick-sell values (a pack costs 1,000,000 coins). Card number: coins. 4 = Charizard, 2 = Blastoise, 15 = Venusaur
 let bsSellValues = { 'Common': 5, 'Uncommon': 8, 'Rare': 30, 'Rare Holo': 120 };
 let bsCardSell = { 4: 2500, 2: 600, 15: 600 };
 
@@ -438,7 +438,7 @@ let SETS = {
   'bs': {
     id: 'bs',
     name: 'Base Set',
-    cost: 100,
+    cost: 1000000,
     packImage: 'https://tools.toywiz.com/_images/_webp/_products/lg/pokbasboospa.webp',
     packLabel: 'Base<br>Set',
     rarityKey: 'customRatesBs',
@@ -1642,7 +1642,7 @@ function updateShop() {
       btn.innerText = 'Open Pack · free';
       btn.classList.remove('poor');
     } else {
-      btn.innerText = 'Open Pack · ' + packCost + ' coins';
+      btn.innerText = 'Open Pack · ' + packCost.toLocaleString() + ' coins';
       btn.classList.toggle('poor', coins < packCost);
     }
   }
