@@ -98,15 +98,16 @@ function applyOp(op, key) {
     if (clean) {
       for (let k in clean.cards) {
         let c = clean.cards[k];
-        if (!data.cards[k]) { data.cards[k] = { count: 0, rarity: c.rarity, img: c.img, name: c.name, color: c.color }; }
-        data.cards[k].count += c.count;
+        let fresh = [];
+        for (let j = 0; j < c.count; j++) { fresh.push(rollScore()); }
+        addCopies(data, k, c, fresh);
         given += c.count;
       }
     }
     for (let k in takes) {
       if (!data.cards[k]) { continue; }
       let n = Math.min(takes[k], data.cards[k].count);
-      data.cards[k].count -= n;
+      takeCopies(data.cards[k], k, n);
       taken += n;
       if (data.cards[k].count <= 0) { delete data.cards[k]; }
     }
@@ -192,6 +193,13 @@ function describeLog(e) {
   if (t === 'market_buy') { return 'Bought ' + cardLabel(e.k) + ' (' + e.r + ') from ' + e.from + ' for ' + e.price + ' coins'; }
   if (t === 'market_sold') { return 'Sold ' + cardLabel(e.k) + ' to ' + e.to + ' for ' + e.price + ' coins (fee ' + e.fee + ')'; }
   if (t === 'market_cancel') { return 'Cancelled a listing of ' + cardLabel(e.k) + ' at ' + e.price + ' coins'; }
+  if (t === 'auction_list') { return 'Started an auction for ' + cardLabel(e.k) + ' (' + e.r + ') from ' + e.start + ' coins, ' + e.hours + 'h'; }
+  if (t === 'auction_bid') { return 'Bid ' + e.amount + ' coins on ' + cardLabel(e.k) + ' from ' + (e.seller || '?'); }
+  if (t === 'auction_sold') { return 'Auction of ' + cardLabel(e.k) + ' sold to ' + e.to + ' for ' + e.price + ' coins (fee ' + e.fee + ')'; }
+  if (t === 'auction_won') { return 'Won the auction for ' + cardLabel(e.k) + ' at ' + e.price + ' coins'; }
+  if (t === 'auction_unsold') { return 'Auction of ' + cardLabel(e.k) + ' ended with no bids, card returned'; }
+  if (t === 'auction_cancel') { return 'Cancelled an auction of ' + cardLabel(e.k); }
+  if (t === 'auction_refund') { return 'Outbid on ' + cardLabel(e.k) + ', refunded ' + e.amount + ' coins'; }
   if (t === 'admin') { return 'Admin change (' + e.op + ') by ' + (e.by || '?') + ': ' + (e.text || ''); }
   return t;
 }
@@ -280,6 +288,14 @@ async function loadBank() {
       fees += Math.floor(p * 0.05);
       sales++;
     });
+    try {
+      let sa = await getDocs(query(collection(db, 'auctions'), where('status', '==', 'sold'), limit(2000)));
+      sa.forEach(function (d) {
+        let p = Math.floor(Number(d.data().bid)) || 0;
+        fees += Math.floor(p * 0.05);
+        sales++;
+      });
+    } catch (e) {}
     let paid = 0;
     let log = [];
     let snap = await getDocs(query(collection(db, 'bankLog'), limit(500)));
@@ -448,6 +464,21 @@ function drawDetail() {
   let thumbs = '';
   for (let i = 0; i < keys.length; i++) { thumbs += binderSlotHtml({ label: '' }, cards[keys[i]], 56, 77); }
 
+  // Hidden per-copy scores (0-1000). Only shown here in the dev panel.
+  let scoreRows = '';
+  let sumAll = 0, nAll = 0, nmAll = 0, lpAll = 0;
+  for (let i = 0; i < keys.length; i++) {
+    let c = cards[keys[i]];
+    if (c.rarity === 'Energy') { continue; }
+    let g = scoresOf(c, keys[i]).slice().sort(function (x, y) { return y - x; });
+    for (let j = 0; j < g.length; j++) { sumAll += g[j]; nAll++; if (g[j] >= condNM) { nmAll++; } else { lpAll++; } }
+    let shown = g.slice(0, 30).map(function (v) { return v + (v >= condNM ? '' : ' (LP)'); }).join(', ') + (g.length > 30 ? ' ...' : '');
+    scoreRows += '<div class="adm-line"><b>' + esc(cardLabel(keys[i])) + '</b> ' + esc(c.rarity) + ': ' + esc(shown) + '</div>';
+  }
+  let scoreHtml = '<div class="adm-sec">Card scores (hidden from players)</div>' +
+    '<div class="dev-note">' + nAll + ' cards, average ' + (nAll ? Math.round(sumAll / nAll) : 0) + ' / 1000, ' + nmAll + ' Near Mint, ' + lpAll + ' Lightly Played. Cards from before conditions existed show a fixed score based on their key.</div>' +
+    (scoreRows ? '<details><summary class="dev-note" style="cursor:pointer">Show every card score</summary>' + scoreRows + '</details>' : '');
+
   let logHtml = '';
   for (let i = 0; i < d.logs.length; i++) {
     logHtml += '<div class="adm-line"><span class="adm-time">' + esc(fmtTime(d.logs[i].t)) + '</span> ' + esc(describeLog(d.logs[i])) + '</div>';
@@ -487,6 +518,7 @@ function drawDetail() {
     '<div class="adm-sec">Collection</div><div class="chips">' + chips + '</div>' +
     '<div class="tthumbs" style="margin-top:8px">' + (thumbs || '<span class="tempty">No cards.</span>') + '</div>' +
 
+    scoreHtml +
     '<div class="adm-sec">Edit this player</div>' +
     '<div class="dev-note">Changes are queued and apply the next time the player has the game open.</div>' +
     '<div class="adm-edit"><input class="dev-input" id="adm-coins" type="number" placeholder="Coins to add (negative removes)" style="width:220px"> ' +

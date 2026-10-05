@@ -98,6 +98,7 @@ async function pushNow() {
     packs: data.collection.packs || 0,
     cardsJson: JSON.stringify(data.collection.cards || {}),
     settledJson: JSON.stringify(data.settled || {}),
+    bindersJson: JSON.stringify(data.binders || { list: [], sel: '' }),
     updated: Date.now()
   });
   // Public leaderboard numbers. A failure here must never stop the normal save.
@@ -126,7 +127,9 @@ function parseCloud(d) {
   try { cards = JSON.parse(d.cardsJson || '{}'); } catch (e) { cards = {}; }
   let settledMap = {};
   try { settledMap = JSON.parse(d.settledJson || '{}'); } catch (e) { settledMap = {}; }
-  return { coins: d.coins, lastDaily: d.lastDaily, streak: d.streak || 0, collection: { cards: cards, packs: d.packs || 0 }, settled: settledMap };
+  let binders;
+  if (typeof d.bindersJson === 'string') { try { binders = JSON.parse(d.bindersJson); } catch (e) { binders = undefined; } }
+  return { coins: d.coins, lastDaily: d.lastDaily, streak: d.streak || 0, collection: { cards: cards, packs: d.packs || 0 }, settled: settledMap, binders: binders };
 }
 
 async function pullAndMerge() {

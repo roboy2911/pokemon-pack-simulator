@@ -942,15 +942,115 @@ function sortCollectionDom() {
   }
 }
 
+// ---------- Card condition + hidden score ----------
+// Every single copy has a hidden score from 0 to 1000. 800 and up shows as Near Mint,
+// below that as Lightly Played. Players only ever see the condition, never the score.
+// Conditions do not change any prices.
+
+let condNM = 800;
+
+function condOf(score) { return score >= condNM ? 'Near Mint' : 'Lightly Played'; }
+function condShort(score) { return score >= condNM ? 'NM' : 'LP'; }
+
+// About 90% Near Mint (800-1000), about 10% Lightly Played (600-799)
+function rollScore() {
+  if (Math.random() < 0.1) { return 600 + Math.floor(Math.random() * 200); }
+  return 800 + Math.floor(Math.random() * 201);
+}
+
+// Same score every time for the same key + copy number. Used for cards that were
+// collected before conditions existed, so they keep a steady condition.
+function seedScore(key, i) {
+  let h = 2166136261;
+  let s = String(key) + '#' + i;
+  for (let k = 0; k < s.length; k++) {
+    h ^= s.charCodeAt(k);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  let r = (h % 100000) / 100000;
+  let r2 = ((Math.imul(h, 2654435761) >>> 0) % 1000) / 1000;
+  if (r < 0.1) { return 600 + Math.floor(r2 * 200); }
+  return 800 + Math.floor(r2 * 201);
+}
+
+// Scores for every copy of a card, always exactly "count" long
+function scoresOf(card, key) {
+  let out = [];
+  let src = card && Array.isArray(card.g) ? card.g : [];
+  let n = card ? Math.floor(Number(card.count)) || 0 : 0;
+  for (let i = 0; i < src.length && out.length < n; i++) {
+    let v = Math.floor(Number(src[i]));
+    if (v >= 0 && v <= 1000) { out.push(v); } else { out.push(seedScore(key, out.length)); }
+  }
+  while (out.length < n) { out.push(seedScore(key, out.length)); }
+  return out;
+}
+
+// Removes up to n copies, lowest score first. cond can be 'NM' or 'LP' to only take that kind.
+// Returns the scores that were removed.
+function takeCopies(card, key, n, cond) {
+  let g = scoresOf(card, key);
+  let idx = [];
+  for (let i = 0; i < g.length; i++) {
+    if (cond === 'NM' && g[i] < condNM) { continue; }
+    if (cond === 'LP' && g[i] >= condNM) { continue; }
+    idx.push(i);
+  }
+  idx.sort(function (a, b) { return g[a] - g[b] || a - b; });
+  idx = idx.slice(0, Math.max(0, n));
+  let drop = {};
+  let removed = [];
+  for (let i = 0; i < idx.length; i++) { drop[idx[i]] = true; removed.push(g[idx[i]]); }
+  let keep = [];
+  for (let i = 0; i < g.length; i++) { if (!drop[i]) { keep.push(g[i]); } }
+  card.g = keep;
+  card.count = keep.length;
+  return removed;
+}
+
+// Adds copies (with the given scores, or new rolls if n is given instead) to a collection
+function addCopies(data, key, meta, scores) {
+  if (!data.cards[key]) {
+    data.cards[key] = { count: 0, rarity: meta.rarity, img: meta.img || '', name: meta.name || '', color: meta.color || '' };
+  }
+  let card = data.cards[key];
+  let g = scoresOf(card, key);
+  for (let i = 0; i < scores.length; i++) {
+    let v = Math.floor(Number(scores[i]));
+    g.push(v >= 0 && v <= 1000 ? v : rollScore());
+  }
+  card.g = g;
+  card.count = g.length;
+}
+
+// Small label such as "NM", "LP" or "NM+LP" for a card entry that has g
+function condTag(card) {
+  if (!card || card.rarity === 'Energy' || !Array.isArray(card.g) || !card.g.length) { return ''; }
+  let nm = 0, lp = 0;
+  for (let i = 0; i < card.g.length; i++) { if (card.g[i] >= condNM) { nm++; } else { lp++; } }
+  let text = nm && lp ? 'NM+LP' : (nm ? 'NM' : 'LP');
+  return '<div class="cond-tag' + (lp && !nm ? ' lp' : '') + '">' + text + '</div>';
+}
+
+// "NM x2 · LP x1" line for the collection
+function condLine(card, key) {
+  if (card.rarity === 'Energy') { return ''; }
+  let g = scoresOf(card, key);
+  let nm = 0, lp = 0;
+  for (let i = 0; i < g.length; i++) { if (g[i] >= condNM) { nm++; } else { lp++; } }
+  let parts = [];
+  if (nm) { parts.push('NM x' + nm); }
+  if (lp) { parts.push('LP x' + lp); }
+  return '<div class="coll-cond' + (lp && !nm ? ' lp' : '') + '">' + parts.join(' · ') + '</div>';
+}
+
 function addToCollection(items) {
   let data = loadCollection();
   data.packs = data.packs + 1;
   for (let i = 0; i < items.length; i++) {
     let item = items[i];
-    if (!data.cards[item.key]) {
-      data.cards[item.key] = { count: 0, rarity: item.rarity, img: item.img || '', name: item.name || '', color: item.color || '' };
-    }
-    data.cards[item.key].count = data.cards[item.key].count + 1;
+    let score = (item.g >= 0 && item.g <= 1000) ? item.g : rollScore();
+    addCopies(data, item.key, item, [score]);
   }
   saveCollection(data);
   renderCollection();
@@ -1019,7 +1119,7 @@ function renderCollection() {
   let stats = document.getElementById('coll-stats');
 
   renderProgress(data);
-  renderBinder();
+  refreshBinders();
 
   let total = 0;
   for (let i = 0; i < keys.length; i++) {
@@ -1066,7 +1166,7 @@ function renderCollection() {
     if (rank === -1) {
       rank = 99;
     }
-    html = html + '<div class="coll-card" data-pid="' + esc(id || '') + '" data-rank="' + rank + '" data-key="' + esc(keys[i]) + '">' + inner + badge + price + sell + '</div>';
+    html = html + '<div class="coll-card" data-pid="' + esc(id || '') + '" data-rank="' + rank + '" data-key="' + esc(keys[i]) + '">' + inner + badge + price + condLine(card, keys[i]) + sell + '</div>';
   }
   if (html === '') {
     html = '<div class="coll-empty">No cards from this set yet.</div>';
@@ -1184,7 +1284,8 @@ function cloudChanged() {
 
 // Everything that gets saved online
 function getSaveData() {
-  return { coins: coins, lastDaily: lastDaily, streak: streak, collection: loadCollection(), settled: settled };
+  return { coins: coins, lastDaily: lastDaily, streak: streak, collection: loadCollection(), settled: settled,
+    binders: (typeof loadBinders === 'function') ? loadBinders() : { list: [], sel: '' } };
 }
 
 // Replace what's on this device with saved data (does not trigger an online save)
@@ -1200,6 +1301,10 @@ function applySaveData(d) {
     localStorage.setItem(dailyStoreKey, String(lastDaily));
     localStorage.setItem(streakStoreKey, String(streak));
     localStorage.setItem(storeKey, JSON.stringify(collection));
+    // custom binders: signing out (null) clears them; a save from before binders existed leaves them alone
+    if (typeof cleanBinders === 'function' && (!d || d.binders)) {
+      localStorage.setItem(bindersKey, JSON.stringify(cleanBinders(d ? d.binders : null)));
+    }
   } catch (e) {
   }
   updateShop();
@@ -1335,7 +1440,7 @@ function sellDuplicate(key) {
     }
     delete data.cards[key];
   } else {
-    card.count = card.count - 1;
+    takeCopies(card, key, 1);
   }
   saveCollection(data);
   addCoins(value);
@@ -1354,6 +1459,10 @@ function sellAllDuplicates() {
       let extra = card.count - 1;
       total = total + extra * sellValue(card.rarity, key);
       sold = sold + extra;
+      // keep your best copy, sell the rest
+      let g = scoresOf(card, key);
+      let best = Math.max.apply(null, g);
+      card.g = [best];
       card.count = 1;
     }
   }
@@ -1487,7 +1596,7 @@ function binderSlotHtml(slot, card, w, h) {
   if (card.count > 1) {
     badge = '<div class="coll-badge">x' + card.count + '</div>';
   }
-  return '<div class="bslot" style="width:' + w + 'px; height:' + h + 'px;">' + inner + badge + '</div>';
+  return '<div class="bslot" style="width:' + w + 'px; height:' + h + 'px;">' + inner + badge + condTag(card) + '</div>';
 }
 
 function renderBinder() {
@@ -1542,6 +1651,12 @@ function renderBinder() {
   document.getElementById('binder-next').disabled = binderPage >= pages.length - 1;
 }
 
+// Redraw whichever binder page is showing
+function refreshBinders() {
+  if (typeof binderPaneName !== 'undefined' && binderPaneName === 'my' && typeof renderMyBinders === 'function') { renderMyBinders(); }
+  else { renderBinder(); }
+}
+
 function binderGo(delta) {
   binderPage = binderPage + delta;
   playSwipe();
@@ -1554,8 +1669,8 @@ function binderJump(value) {
 }
 
 function showView(name) {
-  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view', market: 'market-view', board: 'board-view' };
-  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades', market: 'tab-market', board: 'tab-board' };
+  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view', market: 'market-view', auction: 'auction-view', board: 'board-view' };
+  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades', market: 'tab-market', auction: 'tab-auction', board: 'tab-board' };
   if (!views[name]) { name = 'collection'; }
   for (let v in views) {
     let el = document.getElementById(views[v]);
@@ -1564,9 +1679,10 @@ function showView(name) {
     if (tab) { tab.classList.toggle('active', v === name); }
   }
   try { localStorage.setItem(viewStoreKey, name); } catch (e) {}
-  if (name === 'binder') { renderBinder(); }
+  if (name === 'binder') { refreshBinders(); }
   if (name === 'trades' && window.renderTrades) { window.renderTrades(); }
   if (name === 'market' && window.renderMarket) { window.renderMarket(); }
+  if (name === 'auction' && window.renderAuction) { window.renderAuction(); }
   if (name === 'board' && window.renderBoard) { window.renderBoard(); }
 }
 
@@ -1574,7 +1690,7 @@ function loadView() {
   let name = 'collection';
   try {
     let saved = localStorage.getItem(viewStoreKey);
-    if (saved === 'binder' || saved === 'trades' || saved === 'market' || saved === 'board') { name = saved; }
+    if (saved === 'binder' || saved === 'trades' || saved === 'market' || saved === 'auction' || saved === 'board') { name = saved; }
   } catch (e) {}
   showView(name);
 }
@@ -1778,7 +1894,16 @@ function cleanBackup(raw) {
     if (typeof c.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(c.color)) {
       color = c.color;
     }
-    cards[key] = { count: Math.min(count, 100000), rarity: rarity, img: img, name: name, color: color };
+    count = Math.min(count, 100000);
+    cards[key] = { count: count, rarity: rarity, img: img, name: name, color: color };
+    if (Array.isArray(c.g)) {
+      let g = [];
+      for (let j = 0; j < c.g.length && j < count && j < 5000; j++) {
+        let v = Math.floor(Number(c.g[j]));
+        g.push(v >= 0 && v <= 1000 ? v : seedScore(key, j));
+      }
+      if (g.length) { cards[key].g = g; }
+    }
   }
   if (Object.keys(cards).length === 0) {
     return null;
@@ -1872,11 +1997,16 @@ function buildStack(items) {
     div.style.width = cardW + 'px';
     div.style.height = cardH + 'px';
     div.style.marginTop = ((boxH - cardH) / 2) + 'px';
+    items[i].g = rollScore();
     let tag = '<div class="pricetag">\u2014</div>';
     if (items[i].cardId) {
       tag = '<div class="pricetag" data-price-id="' + esc(items[i].cardId) + '">' + esc(priceText(items[i].cardId)) + '</div>';
     }
-    div.innerHTML = items[i].html + holoHtml(items[i].holo || items[i].rarity) + tag;
+    let condHtml = '';
+    if (items[i].rarity !== 'Energy') {
+      condHtml = '<div class="cond-tag big' + (items[i].g < condNM ? ' lp' : '') + '">' + condOf(items[i].g) + '</div>';
+    }
+    div.innerHTML = items[i].html + holoHtml(items[i].holo || items[i].rarity) + tag + condHtml;
     pack.appendChild(div);
     stackCards.push(div);
   }
@@ -2456,7 +2586,7 @@ function fixOwnedKeys(setId) {
     if (!data.cards[target.url]) {
       data.cards[target.url] = { count: 0, rarity: target.rarity, img: target.url, name: '', color: '' };
     }
-    data.cards[target.url].count += old.count;
+    addCopies(data, target.url, data.cards[target.url], scoresOf(old, key));
     changed = true;
   }
   if (changed) { saveCollection(data); }

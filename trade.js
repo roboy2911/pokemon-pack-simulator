@@ -35,7 +35,7 @@ function itemsToMap(items) {
     if (!it || typeof it.key !== 'string') { continue; }
     let n = Math.min(MAX_N, Math.floor(Number(it.n)));
     if (!(n >= 1)) { continue; }
-    raw[it.key] = { count: n, rarity: it.rarity, img: it.img || '', name: it.name || '', color: it.color || '' };
+    raw[it.key] = { count: n, rarity: it.rarity, img: it.img || '', name: it.name || '', color: it.color || '', g: it.g };
   }
   let clean = cleanBackup({ cards: raw, packs: 0 });
   return clean ? clean.cards : {};
@@ -45,7 +45,9 @@ function mapToItems(map) {
   let out = [];
   for (let key in map) {
     let c = map[key];
-    out.push({ key: key, n: c.count, rarity: c.rarity || 'Common', img: c.img || '', name: c.name || '', color: c.color || '' });
+    let item = { key: key, n: c.count, rarity: c.rarity || 'Common', img: c.img || '', name: c.name || '', color: c.color || '' };
+    if (Array.isArray(c.g) && c.g.length) { item.g = c.g.slice(0, c.count); }
+    out.push(item);
   }
   return out;
 }
@@ -79,7 +81,8 @@ function compact(items) {
 function takeItems(map, coinsAmt) {
   let data = loadCollection();
   for (let key in map) {
-    data.cards[key].count = data.cards[key].count - map[key].count;
+    // lowest scoring copies go first; the scores travel with the cards
+    map[key].g = takeCopies(data.cards[key], key, map[key].count);
     if (data.cards[key].count <= 0) { delete data.cards[key]; }
   }
   saveCollection(data);
@@ -92,10 +95,7 @@ function giveItems(map, coinsAmt) {
   let data = loadCollection();
   for (let key in map) {
     let c = map[key];
-    if (!data.cards[key]) {
-      data.cards[key] = { count: 0, rarity: c.rarity, img: c.img, name: c.name, color: c.color };
-    }
-    data.cards[key].count = data.cards[key].count + c.count;
+    addCopies(data, key, c, scoresOf(c, key));
   }
   saveCollection(data);
   coins = coins + coinsAmt;
@@ -207,8 +207,9 @@ function pickerHtml(side, source) {
     let key = keys[i];
     let card = source[key];
     let n = draft[side][key] || 0;
+    let shown = Object.assign({}, card, { g: scoresOf(card, key) });
     html += '<div class="tpick' + (n ? ' sel' : '') + '" data-act="pick" data-side="' + side + '" data-key="' + esc(key) + '">' +
-      binderSlotHtml({ label: '' }, card, 64, 88) +
+      binderSlotHtml({ label: '' }, shown, 64, 88) +
       '<div class="tcount">' + n + '/' + card.count + '</div>' +
       (n ? '<button class="tminus" data-act="unpick" data-side="' + side + '" data-key="' + esc(key) + '">-</button>' : '') +
       '</div>';
@@ -316,6 +317,7 @@ async function sendOffer() {
   setMsg('Sending...', true);
   // Your side of the offer is held in the trade until it is accepted or cancelled.
   takeItems(giveMap, giveCoins);
+  giveItems_ = mapToItems(giveMap);
   try {
     await pushNow();
     await setDoc(doc(collection(db, 'trades')), {
@@ -352,7 +354,7 @@ async function acceptOffer(id) {
   takeItems(ask, askCoins);
   try {
     await pushNow();
-    await updateDoc(doc(db, 'trades', id), { status: 'accepted', updated: Date.now() });
+    await updateDoc(doc(db, 'trades', id), { status: 'accepted', askItems: mapToItems(ask), updated: Date.now() });
   } catch (e) {
     giveItems(ask, askCoins);
     try { await pushNow(); } catch (e2) {}
@@ -486,4 +488,6 @@ $('trade-view').addEventListener('click', function (e) {
   else if (act === 'cancel') { setStatus(el.dataset.id, 'cancelled'); }
 });
 
+// If sign-in finished before this file loaded, start now
+if (me()) { startListening(); }
 render();

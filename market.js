@@ -19,7 +19,7 @@ let chain = Promise.resolve();
 let busy = false;
 let loadErr = '';
 let lastErr = '';
-let ui = { rarity: 'All', sort: 'cheap', pick: null, qty: 1, price: '' };
+let ui = { rarity: 'All', sort: 'cheap', pick: null, qty: 1, price: '', cond: 'NM' };
 
 function $(id) { return document.getElementById(id); }
 
@@ -29,7 +29,7 @@ function feeFor(price) { return Math.floor(price * FEE_RATE); }
 function cardOf(l) {
   if (!l || !l.card || typeof l.card.key !== 'string') { return null; }
   let raw = {};
-  raw[l.card.key] = { count: 1, rarity: l.card.rarity, img: l.card.img || '', name: l.card.name || '', color: l.card.color || '' };
+  raw[l.card.key] = { count: 1, rarity: l.card.rarity, img: l.card.img || '', name: l.card.name || '', color: l.card.color || '', g: [l.card.g] };
   let clean = cleanBackup({ cards: raw, packs: 0 });
   return clean ? clean.cards[l.card.key] : null;
 }
@@ -48,22 +48,25 @@ function refreshGame() {
   renderCollection();
 }
 
-function removeOne(key) {
+// Takes one copy out of the collection (lowest score of the chosen condition). Returns its score, or -1.
+function removeOne(key, cond) {
   let data = loadCollection();
-  if (!data.cards[key] || data.cards[key].count < 1) { return false; }
-  data.cards[key].count -= 1;
+  if (!data.cards[key] || data.cards[key].count < 1) { return -1; }
+  let got = takeCopies(data.cards[key], key, 1, cond);
+  if (!got.length) { return -1; }
   if (data.cards[key].count <= 0) { delete data.cards[key]; }
   saveCollection(data);
-  return true;
+  return got[0];
 }
 
-function addOne(key, card) {
+function addOne(key, card, score) {
   let data = loadCollection();
-  if (!data.cards[key]) {
-    data.cards[key] = { count: 0, rarity: card.rarity, img: card.img, name: card.name, color: card.color };
-  }
-  data.cards[key].count += 1;
+  addCopies(data, key, card, [score]);
   saveCollection(data);
+}
+
+function scoreOfCard(card) {
+  return (card && Array.isArray(card.g) && card.g.length) ? card.g[0] : undefined;
 }
 
 function timeLeft(l) {
@@ -111,6 +114,7 @@ function tile(l, id, mode) {
   if (mode === 'browse') { extra = '<div class="mk-seller">' + esc(l.sellerName || '') + '</div>'; }
   return '<div class="mk-tile">' + binderSlotHtml({ label: '' }, card, 96, 132) +
     '<div class="mk-name">' + esc(label(l.card.key)) + ' <span class="mk-rar">' + esc(card.rarity) + '</span></div>' +
+    (card.rarity !== 'Energy' && card.g ? '<div class="mk-cond' + (card.g[0] < condNM ? ' lp' : '') + '">' + condOf(card.g[0]) + '</div>' : '') +
     '<div class="mk-price">' + price.toLocaleString() + ' coins</div>' + extra +
     '<div class="mk-time">' + esc(timeLeft(l)) + '</div>' + action + '</div>';
 }
@@ -243,8 +247,18 @@ function drawSell() {
   if (ui.pick) {
     let c = cards[ui.pick];
     let cheap = cheapestFor(ui.pick);
-    hint = '<div class="tlabel">Selected: ' + esc(label(ui.pick)) + ' (' + esc(c.rarity) + '), you own ' + c.count +
-      '. Quick-sell value: ' + sellValue(c.rarity, ui.pick) + ' coins.' + (cheap ? ' Cheapest listed now: ' + cheap.toLocaleString() + ' coins.' : '') + '</div>';
+    let g = scoresOf(c, ui.pick);
+    let nmN = 0, lpN = 0;
+    for (let i = 0; i < g.length; i++) { if (g[i] >= condNM) { nmN++; } else { lpN++; } }
+    let condPick = '';
+    if (c.rarity !== 'Energy' && nmN && lpN) {
+      condPick = ' Condition to list: <select class="tinput" id="mk-cond"><option value="NM"' + (ui.cond === 'NM' ? ' selected' : '') + '>Near Mint (' + nmN + ')</option><option value="LP"' + (ui.cond === 'LP' ? ' selected' : '') + '>Lightly Played (' + lpN + ')</option></select>';
+    } else {
+      ui.cond = nmN ? 'NM' : 'LP';
+    }
+    let condText = c.rarity === 'Energy' ? '' : ' (' + (nmN ? nmN + ' Near Mint' : '') + (nmN && lpN ? ', ' : '') + (lpN ? lpN + ' Lightly Played' : '') + ')';
+    hint = '<div class="tlabel">Selected: ' + esc(label(ui.pick)) + ' (' + esc(c.rarity) + '), you own ' + c.count + condText +
+      '. Quick-sell value: ' + sellValue(c.rarity, ui.pick) + ' coins.' + (cheap ? ' Cheapest listed now: ' + cheap.toLocaleString() + ' coins.' : '') + condPick + '</div>';
   } else {
     hint = '<div class="tlabel">Tap a card to select it.</div>';
   }
@@ -255,6 +269,7 @@ function drawSell() {
     '<button class="dev-btn" data-act="list">List for sale</button></div>' +
     '<div class="tcoins" id="mk-after"></div>' +
     '<div class="tmsg" id="mk-msg"></div></div>';
+  if ($('mk-cond')) { $('mk-cond').onchange = function () { ui.cond = this.value; }; }
   $('mk-price').oninput = function () { ui.price = this.value; updateAfter(); };
   $('mk-qty').oninput = function () { ui.qty = Math.max(1, Math.floor(Number(this.value)) || 1); };
   updateAfter();
@@ -288,7 +303,10 @@ async function listCards() {
   let price = Math.floor(Number(ui.price));
   if (!(price >= 1) || price > MAX_PRICE) { setMsg('Enter a price between 1 and ' + MAX_PRICE.toLocaleString() + ' coins.'); return; }
   let qty = Math.min(MAX_BATCH, Math.max(1, Math.floor(Number(ui.qty)) || 1));
-  if (qty > cards[ui.pick].count) { setMsg('You only own ' + cards[ui.pick].count + ' of that card.'); return; }
+  let owned = scoresOf(cards[ui.pick], ui.pick);
+  let cond = cards[ui.pick].rarity === 'Energy' ? null : ui.cond;
+  let have = owned.filter(function (v) { return cond === null || (cond === 'NM' ? v >= condNM : v < condNM); }).length;
+  if (qty > have) { setMsg('You only own ' + have + ' of that card' + (cond ? ' in that condition' : '') + '.'); return; }
   if (myOpenCount() + qty > MAX_OPEN) { setMsg('You can have at most ' + MAX_OPEN + ' cards listed at once.'); return; }
   let key = ui.pick;
   let src = cards[key];
@@ -298,7 +316,9 @@ async function listCards() {
   let done = 0;
   for (let i = 0; i < qty; i++) {
     // The card is held in the listing until it sells or you cancel
-    if (!removeOne(key)) { break; }
+    let score = removeOne(key, cond);
+    if (score < 0) { break; }
+    card.g = score;
     try {
       await pushNow();
       await setDoc(doc(collection(db, 'listings')), {
@@ -309,7 +329,7 @@ async function listCards() {
       done++;
     } catch (e) {
       lastErr = (e && e.code) ? e.code : 'error';
-      addOne(key, card);
+      addOne(key, card, score);
       try { await pushNow(); } catch (e2) {}
       break;
     }
@@ -409,7 +429,7 @@ async function processAll() {
     } else if (l.status === 'cancelled' || l.status === 'expired') {
       let key = 'mkt:' + id + ':ret';
       if (!settled[key] && card) {
-        addOne(l.card.key, card);
+        addOne(l.card.key, card, scoreOfCard(card));
         settled[key] = true;
         saveSettled();
         await pushNow();
@@ -428,7 +448,7 @@ async function processAll() {
     let card = cardOf(l);
     let key = 'mkt:' + id + ':buy';
     if (!settled[key] && card) {
-      addOne(l.card.key, card);
+      addOne(l.card.key, card, scoreOfCard(card));
       settled[key] = true;
       saveSettled();
       await pushNow();
@@ -479,7 +499,7 @@ function startListening() {
 function reset() {
   openMap = {}; mineMap = {}; boughtMap = {};
   loadErr = '';
-  ui = { rarity: 'All', sort: 'cheap', pick: null, qty: 1, price: '' };
+  ui = { rarity: 'All', sort: 'cheap', pick: null, qty: 1, price: '', cond: 'NM' };
   if ($('market-root')) { $('market-root').innerHTML = ''; }
 }
 

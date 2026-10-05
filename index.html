@@ -560,11 +560,34 @@
   .mk-seller, .mk-time { color: #8a8478; font-size: 11px; }
   .mk-note { color: #8a8478; margin-top: 6px; font-size: 11px; }
   .mk-btn { margin-top: 6px; padding: 6px 14px; font-size: 12px; width: 100%; }
+  .binder-switch { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; }
+  .mb-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; margin-bottom: 10px; }
+  #mb-title { font-weight: 700; font-size: 16px; }
+  #mb-page { display: grid; grid-template-columns: repeat(3, auto); gap: 10px; justify-content: center; background: #243044; padding: 12px; border-radius: 10px; }
+  .mb-slot { position: relative; border-radius: 6px; outline: 2px solid transparent; cursor: pointer; }
+  .mb-slot.sel { outline-color: #e8b923; }
+  .mb-slot .bslot.empty { cursor: pointer; font-size: 28px; color: rgba(255,255,255,0.35); display: flex; align-items: center; justify-content: center; }
+  .mb-light { color: #e9edf5; }
+  .mb-picker { max-height: 360px; }
+  .mb-pick-card { margin-top: 14px; }
+  .mk-cond, .coll-cond { font-size: 11px; color: #2c6b3a; font-weight: 600; }
+  .mk-cond.lp, .coll-cond.lp { color: #a05a00; }
+  .coll-cond { text-align: center; margin: 2px 0; }
+  .cond-tag { position: absolute; top: 3px; left: 3px; z-index: 3; background: rgba(44,107,58,0.9); color: #fff; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 999px; pointer-events: none; }
+  .cond-tag.lp { background: rgba(160,90,0,0.92); }
+  .cond-tag.big { top: 8px; left: 8px; font-size: 11px; padding: 2px 8px; z-index: 6; }
+  .bslot, .coll-card { position: relative; }
+  .au-bidrow { display: flex; gap: 4px; margin-top: 6px; }
+  .au-bidrow input { width: 100%; min-width: 0; padding: 5px; border: 1px solid #cfc8b8; border-radius: 6px; font-size: 12px; }
+  .au-bidrow button { padding: 5px 10px; font-size: 12px; }
+  .au-win { color: #2c6b3a; font-weight: 700; font-size: 11px; margin-top: 6px; }
+  .au-out { color: #a02020; font-weight: 700; font-size: 11px; margin-top: 6px; }
+  .au-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 </style>
 </head>
 <body>
   <div class="dev-overlay" id="dev-overlay"><div class="dev-box" id="dev-box"></div></div>
-  <div class="ver-label">V1.4</div>
+  <div class="ver-label">V1.6</div>
   <button class="sound-btn acct-btn" id="acct-btn">Sign in</button>
   <div class="dev-overlay" id="acct-overlay"><div class="dev-box" id="acct-box"></div></div>
   <button class="sound-btn" id="sound-btn" onclick="toggleSound()">Sound: on</button>
@@ -592,12 +615,20 @@
       <button class="tab" id="tab-binder" onclick="showView('binder')">Binder</button>
       <button class="tab" id="tab-trades" onclick="showView('trades')">Trades</button>
       <button class="tab" id="tab-market" onclick="showView('market')">Market</button>
+      <button class="tab" id="tab-auction" onclick="showView('auction')">Auctions</button>
       <button class="tab" id="tab-board" onclick="showView('board')">Leaderboard</button>
     </div>
     <div id="trade-view" style="display:none"><div id="trade-root"></div></div>
     <div id="market-view" style="display:none"><div id="market-root"></div></div>
+    <div id="auction-view" style="display:none"><div id="auction-root"></div></div>
     <div id="board-view" style="display:none"><div id="board-root"></div></div>
     <div id="binder-view" style="display:none">
+      <div class="binder-switch">
+        <button class="tab active" id="bsw-my" onclick="binderPane('my')">My binders</button>
+        <button class="tab" id="bsw-set" onclick="binderPane('set')">Set binders</button>
+      </div>
+      <div id="mybinder-pane"></div>
+      <div id="setbinder-pane" style="display:none">
       <div class="binder">
         <div class="binder-head">
           <div id="binder-title"></div>
@@ -609,6 +640,7 @@
           <select id="binder-select" class="sort-select" onchange="binderJump(this.value)"></select>
           <button class="daily-btn" id="binder-next" onclick="binderGo(1)">Next &rsaquo;</button>
         </div>
+      </div>
       </div>
     </div>
     <div id="coll-view">
@@ -647,11 +679,13 @@
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=16"></script>
+  <script src="script.js?v=18"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="trade.js"></script>
   <script type="module" src="admin.js"></script>
+  <script src="binders.js?v=1"></script>
   <script type="module" src="market.js"></script>
+  <script type="module" src="auction.js"></script>
   <script type="module" src="leaderboard.js"></script>
 </body>
 </html>
