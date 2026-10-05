@@ -96,14 +96,14 @@ function questClaim(id) {
     addCoins(q.reward);
     logEvent('quest', { id: q.id, coins: q.reward });
     if (typeof achEvent === 'function') { achEvent('quest'); }
-    let msg = 'Quest done: +' + q.reward + ' coins.';
+    let msg = 'Quest done: +' + aud(q.reward) + '.';
     let all = list.every(function (x) { return settled['quest:' + date + ':' + x.id]; });
     if (all && !settled['quest:' + date + ':bonus']) {
       settled['quest:' + date + ':bonus'] = true;
       saveSettled();
       addCoins(questBonus);
       logEvent('quest', { id: 'bonus', coins: questBonus });
-      msg += ' All three done: +' + questBonus + ' bonus coins!';
+      msg += ' All three done: +' + aud(questBonus) + ' bonus!';
     }
     let info = document.getElementById('info');
     if (info) { info.innerText = msg; }
@@ -128,12 +128,12 @@ function renderQuests() {
     let pct = Math.round(have / q.target * 100);
     let action = claimed ? '<span class="q-done">Claimed</span>'
       : (have >= q.target ? '<button class="daily-btn q-claim" data-quest="' + q.id + '">Claim +' + q.reward + '</button>'
-        : '<span class="q-reward">+' + q.reward + ' coins</span>');
+        : '<span class="q-reward">+' + aud(q.reward) + '</span>');
     rows += '<div class="q-row"><div class="q-main"><div class="q-text">' + esc(q.text) + '</div>' +
       '<div class="q-bar"><div class="q-fill" style="width:' + pct + '%"></div></div>' +
       '<div class="q-count">' + have + ' / ' + q.target + '</div></div><div class="q-act">' + action + '</div></div>';
   }
-  box.innerHTML = '<div class="q-card"><div class="q-head"><b>Daily quests</b> <span class="q-sub">Finish all 3 for +' + questBonus + ' bonus coins. New quests tomorrow.</span></div>' + rows + '</div>';
+  box.innerHTML = '<div class="q-card"><div class="q-head"><b>Daily quests</b> <span class="q-sub">Finish all 3 for +' + aud(questBonus) + ' bonus. New quests tomorrow.</span></div>' + rows + '</div>';
 }
 
 document.getElementById('quests-box').addEventListener('click', function (e) {

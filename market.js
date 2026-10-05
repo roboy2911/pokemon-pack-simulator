@@ -131,7 +131,7 @@ function tile(l, id, mode) {
   return '<div class="mk-tile">' + binderSlotHtml({ label: '' }, card, 96, 132) +
     '<div class="mk-name">' + esc(label(l.card.key)) + ' <span class="mk-rar">' + esc(card.rarity) + '</span></div>' +
     (card.grade ? '<div class="mk-cond slabtag">Graded ' + card.grade + '/10</div>' : card.rarity !== 'Energy' && card.g ? '<div class="mk-cond' + (card.g[0] < condNM ? ' lp' : '') + '">' + condOf(card.g[0]) + '</div>' : '') +
-    '<div class="mk-price">' + price.toLocaleString() + ' coins</div>' + extra +
+    '<div class="mk-price">' + aud(price) + '</div>' + extra +
     '<div class="mk-time">' + esc(timeLeft(l)) + '</div>' + action + '</div>';
 }
 
@@ -145,7 +145,7 @@ function render() {
   }
   if (!$('mk-browse')) {
     root.innerHTML =
-      '<div class="tcard"><h3>Marketplace</h3><div class="tlabel">Sell cards to other players for coins. A 5% fee is taken from each sale. All fees go to a community bank that is used for giveaways in our Discord.</div></div>' +
+      '<div class="tcard"><h3>Marketplace</h3><div class="tlabel">Sell cards to other players for money. A 5% fee is taken from each sale. All fees go to a community bank that is used for giveaways in our Discord.</div></div>' +
       '<div id="mk-sell"></div><div class="tsec-title">For sale</div><div id="mk-filters"></div><div id="mk-browse"></div>' +
       '<div class="tsec-title">Your listings</div><div id="mk-mine"></div>';
     drawSell();
@@ -208,7 +208,7 @@ function drawMine() {
     else if (n < 8) {
       let card = cardOf(l);
       if (!card) { continue; }
-      let text = l.status === 'sold' ? 'Sold for ' + priceOf(l).toLocaleString() + ' coins' : (l.status === 'expired' ? 'Expired, returned' : 'Cancelled, returned');
+      let text = l.status === 'sold' ? 'Sold for ' + aud(priceOf(l)) + '' : (l.status === 'expired' ? 'Expired, returned' : 'Cancelled, returned');
       hist += '<div class="adm-line">' + esc(label(l.card.key)) + ' (' + esc(card.rarity) + '): ' + esc(text) + '</div>';
       n++;
     }
@@ -219,7 +219,7 @@ function drawMine() {
     let l = boughtMap[bids[i]];
     let card = cardOf(l);
     if (!card) { continue; }
-    bought += '<div class="adm-line">Bought ' + esc(label(l.card.key)) + ' (' + esc(card.rarity) + ') from ' + esc(l.sellerName || '') + ' for ' + priceOf(l).toLocaleString() + ' coins</div>';
+    bought += '<div class="adm-line">Bought ' + esc(label(l.card.key)) + ' (' + esc(card.rarity) + ') from ' + esc(l.sellerName || '') + ' for ' + aud(priceOf(l)) + '</div>';
   }
   box.innerHTML = (open ? '<div class="mk-grid">' + open + '</div>' : '<div class="tempty">You have nothing listed.</div>') +
     (hist || bought ? '<div class="tlabel" style="margin-top:12px">Recent activity</div>' + hist + bought : '');
@@ -269,7 +269,7 @@ function drawSell() {
   let hint = '';
   if (ui.slab) {
     let sl = slabs[ui.slab];
-    hint = '<div class="tlabel">Selected: graded ' + esc(label(sl.key)) + ' (' + esc(sl.rarity) + '), grade ' + sl.grade + '/10. Quick-sell value: ' + slabSellValue(sl) + ' coins.</div>';
+    hint = '<div class="tlabel">Selected: graded ' + esc(label(sl.key)) + ' (' + esc(sl.rarity) + '), grade ' + sl.grade + '/10. Quick-sell value: ' + aud(slabSellValue(sl)) + '.</div>';
   } else if (ui.pick) {
     let c = cards[ui.pick];
     let cheap = cheapestFor(ui.pick);
@@ -284,14 +284,14 @@ function drawSell() {
     }
     let condText = c.rarity === 'Energy' ? '' : ' (' + (nmN ? nmN + ' Near Mint' : '') + (nmN && lpN ? ', ' : '') + (lpN ? lpN + ' Lightly Played' : '') + ')';
     hint = '<div class="tlabel">Selected: ' + esc(label(ui.pick)) + ' (' + esc(c.rarity) + '), you own ' + c.count + condText +
-      '. Quick-sell value: ' + sellValue(c.rarity, ui.pick) + ' coins.' + (cheap ? ' Cheapest listed now: ' + cheap.toLocaleString() + ' coins.' : '') + condPick + '</div>';
+      '. Quick-sell value: ' + aud(sellValue(c.rarity, ui.pick)) + '.' + (cheap ? ' Cheapest listed now: ' + aud(cheap) + '.' : '') + condPick + '</div>';
   } else {
     hint = '<div class="tlabel">Tap a card to select it.</div>';
   }
   box.innerHTML = '<div class="tcard"><h3>Sell a card</h3>' +
     (keys.length ? '<div class="tpicker">' + grid + '</div>' : '<div class="tempty">You have no cards to sell.</div>') +
     (slabGrid ? '<div class="tlabel" style="margin-top:8px">Graded slabs</div><div class="tpicker" id="mk-slabs">' + slabGrid + '</div>' : '') + hint +
-    '<div class="adm-edit">Price (each): <input class="tinput tcoin-in" id="mk-price" type="number" min="1" placeholder="coins" value="' + esc(ui.price) + '"> ' +
+    '<div class="adm-edit">Price (each): <input class="tinput tcoin-in" id="mk-price" type="number" min="0.2" step="0.2" placeholder="A$" value="' + esc(ui.price) + '"> ' +
     'Copies: <input class="tinput tcoin-in" id="mk-qty" type="number" min="1" max="' + MAX_BATCH + '" value="' + ui.qty + '" style="width:70px"> ' +
     '<button class="dev-btn" data-act="list">List for sale</button></div>' +
     '<div class="tcoins" id="mk-after"></div>' +
@@ -305,9 +305,9 @@ function drawSell() {
 function updateAfter() {
   let el = $('mk-after');
   if (!el) { return; }
-  let p = Math.floor(Number(ui.price));
+  let p = audIn(ui.price);
   if (p >= 1) {
-    el.textContent = 'You receive ' + (p - feeFor(p)).toLocaleString() + ' coins per sale (fee ' + feeFor(p).toLocaleString() + ').';
+    el.textContent = 'You receive ' + aud((p - feeFor(p))) + ' per sale (fee ' + aud(feeFor(p)) + ').';
   } else {
     el.textContent = '';
   }
@@ -326,8 +326,8 @@ async function listSlab(c) {
   let slabs = grSlabs();
   let sl = slabs[ui.slab];
   if (!sl) { setMsg('Tap a card to sell first.'); return; }
-  let price = Math.floor(Number(ui.price));
-  if (!(price >= 1) || price > MAX_PRICE) { setMsg('Enter a price between 1 and ' + MAX_PRICE.toLocaleString() + ' coins.'); return; }
+  let price = audIn(ui.price);
+  if (!(price >= 1) || price > MAX_PRICE) { setMsg('Enter a price between 1 and ' + aud(MAX_PRICE) + '.'); return; }
   if (myOpenCount() + 1 > MAX_OPEN) { setMsg('You can have at most ' + MAX_OPEN + ' cards listed at once.'); return; }
   busy = true;
   setMsg('Listing...', true);
@@ -356,7 +356,7 @@ async function listSlab(c) {
   if (done) {
     logMarket('market_list', { k: card.key, r: card.rarity, price: price, n: 1, grade: card.grade });
     if (window.questEvent) { window.questEvent('list'); }
-    setMsg('Listed graded ' + label(card.key) + ' (grade ' + card.grade + ') for ' + price.toLocaleString() + ' coins.', true);
+    setMsg('Listed graded ' + label(card.key) + ' (grade ' + card.grade + ') for ' + aud(price) + '.', true);
   } else {
     setMsg('Could not list that (' + lastErr + '). Nothing was lost.');
   }
@@ -368,8 +368,8 @@ async function listCards() {
   if (ui.slab) { return listSlab(c); }
   let cards = loadCollection().cards;
   if (!ui.pick || !cards[ui.pick]) { setMsg('Tap a card to sell first.'); return; }
-  let price = Math.floor(Number(ui.price));
-  if (!(price >= 1) || price > MAX_PRICE) { setMsg('Enter a price between 1 and ' + MAX_PRICE.toLocaleString() + ' coins.'); return; }
+  let price = audIn(ui.price);
+  if (!(price >= 1) || price > MAX_PRICE) { setMsg('Enter a price between 1 and ' + aud(MAX_PRICE) + '.'); return; }
   let qty = Math.min(MAX_BATCH, Math.max(1, Math.floor(Number(ui.qty)) || 1));
   let owned = scoresOf(cards[ui.pick], ui.pick);
   let cond = cards[ui.pick].rarity === 'Energy' ? null : ui.cond;
@@ -407,12 +407,12 @@ async function listCards() {
   if (done) {
     logMarket('market_list', { k: key, r: card.rarity, price: price, n: done });
     if (window.questEvent) { window.questEvent('list'); }
-    setMsg('Listed ' + done + ' x ' + label(key) + ' for ' + price.toLocaleString() + ' coins each.', true);
+    setMsg('Listed ' + done + ' x ' + label(key) + ' for ' + aud(price) + ' each.', true);
   } else {
     setMsg('Could not list that (' + lastErr + '). Nothing was lost. If it says permission-denied, publish the new database rules.');
   }
   drawSell();
-  if (done) { setMsg('Listed ' + done + ' x ' + label(key) + ' for ' + price.toLocaleString() + ' coins each.', true); }
+  if (done) { setMsg('Listed ' + done + ' x ' + label(key) + ' for ' + aud(price) + ' each.', true); }
   else { setMsg('Could not list that (' + lastErr + '). Nothing was lost. If it says permission-denied, publish the new database rules.'); }
 }
 
@@ -437,8 +437,8 @@ async function buyListing(id) {
   let price = priceOf(l);
   if (!card || !price || l.status !== 'open' || l.seller === c.uid) { return; }
   if ((l.expires || 0) <= Date.now()) { $('info').innerText = 'That listing has expired.'; return; }
-  if (coins < price) { $('info').innerText = 'Not enough coins (' + price.toLocaleString() + ' needed).'; return; }
-  if (!confirm('Buy ' + label(l.card.key) + ' (' + card.rarity + ') from ' + (l.sellerName || 'this player') + ' for ' + price.toLocaleString() + ' coins?')) { return; }
+  if (coins < price) { $('info').innerText = 'Not enough money (' + aud(price) + ' needed).'; return; }
+  if (!confirm('Buy ' + label(l.card.key) + ' (' + card.rarity + ') from ' + (l.sellerName || 'this player') + ' for ' + aud(price) + '?')) { return; }
   busy = true;
   coins = coins - price;
   saveCoins();
@@ -494,7 +494,7 @@ async function processAll() {
         await pushNow();
         logMarket('market_sold', { k: l.card.key, price: price, fee: feeFor(price), to: l.buyerName || '' });
         if (window.achEvent) { window.achEvent('sold'); }
-        notes.push('Sold ' + label(l.card.key) + ' for ' + got.toLocaleString() + ' coins.');
+        notes.push('Sold ' + label(l.card.key) + ' for ' + aud(got) + '.');
       }
     } else if (l.status === 'cancelled' || l.status === 'expired') {
       let key = 'mkt:' + id + ':ret';

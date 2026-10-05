@@ -30,6 +30,8 @@ function score(r) {
   if (ui.cat === 'cpe') { return pct(r.oPe, r.tPe); }
   if (ui.cat === 'cpf') { return pct(r.oPf, r.tPf); }
   if (ui.cat === 'cbs') { return pct(r.oBs, r.tBs); }
+  if (ui.cat === 'stall') { return num(r.stall); }
+  if (ui.cat === 'stalld') { return (typeof r.stallD === 'string' && r.stallD === new Date().toISOString().slice(0, 10)) ? num(r.stallE) : null; }
   if (ui.cat === 'best') { return r.best && num(r.best.price) !== null ? r.best.price : null; }
   return null;
 }
@@ -44,6 +46,7 @@ function show(r) {
   if (ui.cat === 'cpe') { return s.toFixed(1) + '% (' + r.oPe + '/' + r.tPe + ')'; }
   if (ui.cat === 'cpf') { return s.toFixed(1) + '% (' + r.oPf + '/' + r.tPf + ')'; }
   if (ui.cat === 'cbs') { return s.toFixed(1) + '% (' + r.oBs + '/' + r.tBs + ')'; }
+  if (ui.cat === 'stall' || ui.cat === 'stalld') { return aud(s) + ''; }
   return 'A$' + s.toFixed(2);
 }
 
@@ -64,7 +67,7 @@ function draw() {
     root.innerHTML = '<div class="coll-empty">Sign in to see the leaderboard.</div>';
     return;
   }
-  let cats = [['packs', 'Packs opened'], ['value', 'Collection value'], ['c30', '30th Celebration completion'], ['casc', 'Ascended Heroes completion'], ['ctu', 'Team Up completion'], ['cpe', 'Prismatic Evolutions completion'], ['cpf', 'Paldean Fates completion'], ['cbs', 'Base Set completion'], ['best', 'Rarest pull (most valuable card)']];
+  let cats = [['packs', 'Packs opened'], ['value', 'Collection value'], ['c30', '30th Celebration completion'], ['casc', 'Ascended Heroes completion'], ['ctu', 'Team Up completion'], ['cpe', 'Prismatic Evolutions completion'], ['cpf', 'Paldean Fates completion'], ['stalld', 'Top stall today'], ['stall', 'Top stall of all time'], ['best', 'Rarest pull (most valuable card)']];
   let opts = '';
   for (let i = 0; i < cats.length; i++) {
     opts += '<option value="' + cats[i][0] + '"' + (ui.cat === cats[i][0] ? ' selected' : '') + '>' + cats[i][1] + '</option>';

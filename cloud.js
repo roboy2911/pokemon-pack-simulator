@@ -167,7 +167,7 @@ async function pullAndMerge() {
       try { linked = localStorage.getItem('pokemonPackLinkedUid') || ''; } catch (e) {}
       let ok = true;
       if (linked !== user.uid && hasLocalProgress()) {
-        ok = confirm('This account already has a saved game. Load it? This replaces the cards and coins currently on this device.');
+        ok = confirm('This account already has a saved game. Load it? This replaces the cards and money currently on this device.');
       }
       if (!ok) {
         ready = false;
@@ -282,7 +282,7 @@ async function unfinishedThings() {
 function showDelete() {
   $('acct-box').innerHTML =
     '<h3>Delete account</h3>' +
-    '<div class="dev-note">This permanently deletes your online save (cards, coins, binders), your username and your leaderboard entry. It cannot be undone. Finish or cancel any listings, auctions and trade offers first. A record of past activity (what you did, not your email) stays in the game history.</div>' +
+    '<div class="dev-note">This permanently deletes your online save (cards, money, binders), your username and your leaderboard entry. It cannot be undone. Finish or cancel any listings, auctions and trade offers first. A record of past activity (what you did, not your email) stays in the game history.</div>' +
     '<input class="dev-input" id="del-name" placeholder="Type your username to confirm" autocomplete="off">' +
     '<input class="dev-input" id="del-pass" type="password" placeholder="Your password" autocomplete="current-password">' +
     '<div class="dev-msg" id="del-msg"></div>' +
@@ -356,7 +356,7 @@ function showForm() {
   let up = mode === 'signup';
   $('acct-box').innerHTML =
     '<h3>' + (up ? 'Create account' : 'Sign in') + '</h3>' +
-    '<div class="dev-note">' + (up ? 'Your cards and coins on this device will be saved to the new account.' : 'Sign in to load your saved game.') + '</div>' +
+    '<div class="dev-note">' + (up ? 'Your cards and money on this device will be saved to the new account.' : 'Sign in to load your saved game.') + '</div>' +
     (up ? '<input class="dev-input" id="acct-name" placeholder="Username (letters, numbers, _)" maxlength="20" autocomplete="username">' : '') +
     '<input class="dev-input" id="acct-email" type="email" placeholder="Email" autocomplete="email">' +
     '<input class="dev-input" id="acct-pass" type="password" placeholder="Password (6+ characters)" autocomplete="' + (up ? 'new-password' : 'current-password') + '">' +

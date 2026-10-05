@@ -72,7 +72,26 @@ let storeKey = 'pokemonPackCollection';
 // Coins and shop
 let coinStoreKey = 'pokemonPackCoins';
 let dailyStoreKey = 'pokemonPackDaily';
-let coins = 500;            // starting coins for a new player
+let coins = 500;            // starting money for a new player (stored as coins; 5 coins = A$1)
+let coinsPerAud = 5;
+
+// Shows an amount of coins as Australian dollars, e.g. 100 -> A$20, 7 -> A$1.40
+function aud(n) {
+  let v = (Number(n) || 0) / coinsPerAud;
+  let whole = Math.abs(v - Math.round(v)) < 1e-9;
+  return 'A$' + v.toLocaleString(undefined, whole ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// The number to show inside a price box (dollars)
+function audVal(n) {
+  return Math.round((Number(n) || 0) / coinsPerAud * 100) / 100;
+}
+
+// Dollars typed by a player -> whole coins (0 if it is not a number)
+function audIn(text) {
+  let v = Number(String(text).replace(/[^0-9.\-]/g, ''));
+  return isFinite(v) ? Math.round(v * coinsPerAud) : 0;
+}
 let packCost = 100;         // price of one pack
 let dailyReward = 150;      // coins for the daily reward
 let dailyWait = 20 * 60 * 60 * 1000;  // hours between daily rewards (20h)
@@ -107,8 +126,8 @@ let sellValues = {
 };
 let sortMode = 'price';
 let curView = 'collection';
-let badges = { market: 0, auction: 0, grading: 0 };
-let badgeNames = { market: 'Market', auction: 'Auctions', grading: 'Grading' };   // which tab is showing, and unseen-event counts
+let badges = { market: 0, auction: 0, grading: 0, stall: 0 };
+let badgeNames = { market: 'Market', auction: 'Auctions', grading: 'Grading', stall: 'Stall' };   // which tab is showing, and unseen-event counts
 let sortStoreKey = 'pokemonPackSort';
 
 // Only pictures from these sites are accepted when importing a backup
@@ -1506,6 +1525,7 @@ function leaderStats() {
     out.tBs = Object.keys(all).length;
   }
   if (typeof grSlabs === 'function') { let sl = grSlabs(); let ids = Object.keys(sl); out.slabs = ids.length; out.g10 = ids.filter(function (i) { return sl[i].grade === 10; }).length; }
+  if (typeof stallPublic === 'function') { let sp = stallPublic(); out.stall = sp.total; out.stallSold = sp.sold; out.stallD = sp.day; out.stallE = sp.dayEarn; }
   if (typeof achUnlockedIds === 'function') { out.ach = achUnlockedIds(); }
   if (typeof cosPublic === 'function') { let cp = cosPublic(); out.title = cp.title; out.frame = cp.frame; }
   return out;
@@ -1635,14 +1655,14 @@ function dailyText() {
 
 function updateShop() {
   let c = document.getElementById('coin-count');
-  if (c) { c.innerText = coins.toLocaleString(); }
+  if (c) { c.innerText = aud(coins); }
   let btn = document.getElementById('open-btn');
   if (btn) {
     if (unlimited) {
       btn.innerText = 'Open Pack · free';
       btn.classList.remove('poor');
     } else {
-      btn.innerText = 'Open Pack · ' + packCost.toLocaleString() + ' coins';
+      btn.innerText = 'Open Pack · ' + aud(packCost) + '';
       btn.classList.toggle('poor', coins < packCost);
     }
   }
@@ -1654,7 +1674,7 @@ function updateShop() {
       d.disabled = true;
     } else {
       let next = nextDaily();
-      d.innerText = 'Claim daily reward (+' + next.amount + ')' + (next.streak > 1 ? ' \u00b7 day ' + next.streak : '');
+      d.innerText = 'Claim daily reward (+' + aud(next.amount) + ')' + (next.streak > 1 ? ' \u00b7 day ' + next.streak : '');
       d.disabled = false;
     }
   }
@@ -1676,7 +1696,7 @@ function claimDaily() {
   addCoins(next.amount);
   playTone(880, 0, 0.12, 0.2, 'sine');
   playTone(1320, 0.1, 0.18, 0.2, 'sine');
-  document.getElementById('info').innerText = 'You claimed ' + next.amount + ' coins! Day ' + streak + ' streak.';
+  document.getElementById('info').innerText = 'You claimed ' + aud(next.amount) + '! Day ' + streak + ' streak.';
   logEvent('daily', { coins: next.amount, streak: streak });
 }
 
@@ -1688,7 +1708,7 @@ function sellDuplicate(key) {
   }
   let value = sellValue(card.rarity, key);
   if (card.count === 1) {
-    if (!confirm('This is your last copy. Sell it for ' + value + ' coins? It will leave your collection.')) {
+    if (!confirm('This is your last copy. Sell it for ' + aud(value) + '? It will leave your collection.')) {
       return;
     }
     delete data.cards[key];
@@ -1724,7 +1744,7 @@ function sellAllDuplicates() {
     document.getElementById('info').innerText = 'You have no spare copies to sell.';
     return;
   }
-  if (!confirm('Sell ' + sold + ' spare cards for ' + total + ' coins? You keep one of each card.')) {
+  if (!confirm('Sell ' + sold + ' spare cards for ' + aud(total) + '? You keep one of each card.')) {
     return;
   }
   saveCollection(data);
@@ -1732,7 +1752,7 @@ function sellAllDuplicates() {
   qe('sell', sold);
   playTone(660, 0, 0.1, 0.18, 'triangle');
   playTone(990, 0.1, 0.16, 0.18, 'triangle');
-  document.getElementById('info').innerText = 'Sold ' + sold + ' spare cards for ' + total + ' coins.';
+  document.getElementById('info').innerText = 'Sold ' + sold + ' spare cards for ' + aud(total) + '.';
   logEvent('sellAll', { n: sold, coins: total });
   renderCollection();
 }
@@ -1924,8 +1944,8 @@ function binderJump(value) {
 }
 
 function showView(name) {
-  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view', market: 'market-view', auction: 'auction-view', achievements: 'ach-view', shop: 'shop-view', grading: 'grade-view', board: 'board-view' };
-  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades', market: 'tab-market', auction: 'tab-auction', achievements: 'tab-ach', shop: 'tab-shop', grading: 'tab-grading', board: 'tab-board' };
+  let views = { collection: 'coll-view', binder: 'binder-view', trades: 'trade-view', market: 'market-view', auction: 'auction-view', achievements: 'ach-view', shop: 'shop-view', grading: 'grade-view', stall: 'stall-view', board: 'board-view' };
+  let tabs = { collection: 'tab-coll', binder: 'tab-binder', trades: 'tab-trades', market: 'tab-market', auction: 'tab-auction', achievements: 'tab-ach', shop: 'tab-shop', grading: 'tab-grading', stall: 'tab-stall', board: 'tab-board' };
   if (!views[name]) { name = 'collection'; }
   for (let v in views) {
     let el = document.getElementById(views[v]);
@@ -1935,7 +1955,7 @@ function showView(name) {
   }
   try { localStorage.setItem(viewStoreKey, name); } catch (e) {}
   curView = name;
-  if (name === 'market' || name === 'auction' || name === 'grading') { clearBadge(name); }
+  if (name === 'market' || name === 'auction' || name === 'grading' || name === 'stall') { clearBadge(name); }
   let activeTab = document.getElementById(tabs[name]);
   if (activeTab && activeTab.scrollIntoView) { try { activeTab.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} }
   if (name === 'binder') { refreshBinders(); }
@@ -1945,6 +1965,7 @@ function showView(name) {
   if (name === 'achievements' && window.renderAchievements) { window.renderAchievements(); }
   if (name === 'shop' && window.renderShop) { window.renderShop(); }
   if (name === 'grading' && window.renderGrading) { window.renderGrading(); }
+  if (name === 'stall' && window.renderStall) { window.renderStall(); }
   if (name === 'board' && window.renderBoard) { window.renderBoard(); }
 }
 
@@ -1952,7 +1973,7 @@ function loadView() {
   let name = 'collection';
   try {
     let saved = localStorage.getItem(viewStoreKey);
-    if (saved === 'binder' || saved === 'trades' || saved === 'market' || saved === 'auction' || saved === 'achievements' || saved === 'shop' || saved === 'grading' || saved === 'board') { name = saved; }
+    if (saved === 'binder' || saved === 'trades' || saved === 'market' || saved === 'auction' || saved === 'achievements' || saved === 'shop' || saved === 'grading' || saved === 'stall' || saved === 'board') { name = saved; }
   } catch (e) {}
   showView(name);
 }
@@ -2051,7 +2072,7 @@ function checkRewards() {
     if (settled[key]) { return; }
     settled[key] = true;
     total = total + amount;
-    notes.push(text + ' +' + amount);
+    notes.push(text + ' +' + aud(amount));
     logEvent('reward', { kind: key, coins: amount });
   }
 
@@ -2110,7 +2131,7 @@ function checkRewards() {
     saveSettled();
     saveCoins();
     updateShop();
-    rewardNote = 'Rewards: ' + notes.join(', ') + ' coins!';
+    rewardNote = 'Rewards: ' + notes.join(', ') + '!';
     playTone(784, 0, 0.12, 0.2, 'sine');
     playTone(988, 0.1, 0.12, 0.2, 'sine');
     playTone(1319, 0.2, 0.2, 0.2, 'sine');
@@ -2644,7 +2665,7 @@ function openPack() {
     return;
   }
   if (!unlimited && coins < packCost) {
-    document.getElementById('info').innerText = 'Not enough coins. Sell spare cards or claim your daily reward.';
+    document.getElementById('info').innerText = 'Not enough money. Sell spare cards or claim your daily reward.';
     return;
   }
   if (!unlimited) {
@@ -3321,7 +3342,7 @@ function showDevPanel() {
     }
     html += '</div>';
   }
-  html += '<div class="dev-btns"><button class="dev-btn dev-ghost" id="dev-coins">+1000 coins</button> ' +
+  html += '<div class="dev-btns"><button class="dev-btn dev-ghost" id="dev-coins">+A$200</button> ' +
     '<button class="dev-btn" id="dev-reset">Reset to default</button> ' +
     '<button class="dev-btn dev-ghost" id="dev-close">Close</button></div>';
   box.innerHTML = html;

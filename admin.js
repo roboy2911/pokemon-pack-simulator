@@ -75,7 +75,7 @@ function applyOp(op, key) {
     coins = Math.max(0, coins + amount);
     settled[key] = true;
     saveCoins();
-    return (amount >= 0 ? '+' : '') + amount + ' coins.';
+    return (amount >= 0 ? '+' : '') + aud(amount) + '.';
   }
   if (op.type === 'cards') {
     let items = Array.isArray(op.items) ? op.items.slice(0, 40) : [];
@@ -187,28 +187,28 @@ function describeLog(e) {
     for (let r in counts) { parts.push(counts[r] + ' ' + r); }
     return 'Opened a pack: ' + parts.join(', ');
   }
-  if (t === 'sell') { return 'Sold ' + cardLabel(e.k) + ' (' + e.r + ') for ' + e.coins + ' coins'; }
-  if (t === 'sellAll') { return 'Sold ' + e.n + ' spare cards for ' + e.coins + ' coins'; }
-  if (t === 'daily') { return 'Claimed daily reward: ' + e.coins + ' coins (day ' + e.streak + ')'; }
-  if (t === 'reward') { return 'Reward ' + e.kind + ': ' + e.coins + ' coins'; }
-  if (t === 'quest') { return 'Quest ' + e.id + ' claimed: ' + e.coins + ' coins'; }
+  if (t === 'sell') { return 'Sold ' + cardLabel(e.k) + ' (' + e.r + ') for ' + aud(e.coins) + ''; }
+  if (t === 'sellAll') { return 'Sold ' + e.n + ' spare cards for ' + aud(e.coins) + ''; }
+  if (t === 'daily') { return 'Claimed daily reward: ' + aud(e.coins) + ' (day ' + e.streak + ')'; }
+  if (t === 'reward') { return 'Reward ' + e.kind + ': ' + aud(e.coins) + ''; }
+  if (t === 'quest') { return 'Quest ' + e.id + ' claimed: ' + aud(e.coins) + ''; }
   if (t === 'login') { return 'Signed in'; }
   if (t === 'trade_sent') { return 'Sent a trade to ' + e.toName + ': gives ' + itemsText(e.give) + ' + ' + (e.giveCoins || 0) + ' coins, wants ' + itemsText(e.get) + ' + ' + (e.getCoins || 0) + ' coins'; }
   if (t === 'trade_accept') { return 'Accepted a trade from ' + e.fromName + ': paid ' + itemsText(e.give) + ' + ' + (e.giveCoins || 0) + ' coins'; }
   if (t === 'trade_declined') { return 'Declined a trade from ' + e.with; }
   if (t === 'trade_cancelled') { return 'Cancelled a trade to ' + e.with; }
-  if (t === 'trade_paid') { return 'Trade ' + e.status + ': received ' + itemsText(e.got) + ' + ' + (e.gotCoins || 0) + ' coins'; }
-  if (t === 'market_list') { return 'Listed ' + (e.n || 1) + 'x ' + cardLabel(e.k) + ' (' + e.r + ') for ' + e.price + ' coins each'; }
-  if (t === 'market_buy') { return 'Bought ' + cardLabel(e.k) + ' (' + e.r + ') from ' + e.from + ' for ' + e.price + ' coins'; }
-  if (t === 'market_sold') { return 'Sold ' + cardLabel(e.k) + ' to ' + e.to + ' for ' + e.price + ' coins (fee ' + e.fee + ')'; }
-  if (t === 'market_cancel') { return 'Cancelled a listing of ' + cardLabel(e.k) + ' at ' + e.price + ' coins'; }
-  if (t === 'auction_list') { return 'Started an auction for ' + cardLabel(e.k) + ' (' + e.r + ') from ' + e.start + ' coins, ' + e.hours + 'h'; }
-  if (t === 'auction_bid') { return 'Bid ' + e.amount + ' coins on ' + cardLabel(e.k) + ' from ' + (e.seller || '?'); }
-  if (t === 'auction_sold') { return 'Auction of ' + cardLabel(e.k) + ' sold to ' + e.to + ' for ' + e.price + ' coins (fee ' + e.fee + ')'; }
-  if (t === 'auction_won') { return 'Won the auction for ' + cardLabel(e.k) + ' at ' + e.price + ' coins'; }
+  if (t === 'trade_paid') { return 'Trade ' + e.status + ': received ' + itemsText(e.got) + ' + ' + aud(e.gotCoins || 0); }
+  if (t === 'market_list') { return 'Listed ' + (e.n || 1) + 'x ' + cardLabel(e.k) + ' (' + e.r + ') for ' + aud(e.price) + ' each'; }
+  if (t === 'market_buy') { return 'Bought ' + cardLabel(e.k) + ' (' + e.r + ') from ' + e.from + ' for ' + aud(e.price) + ''; }
+  if (t === 'market_sold') { return 'Sold ' + cardLabel(e.k) + ' to ' + e.to + ' for ' + aud(e.price) + ' (fee ' + aud(e.fee) + ')'; }
+  if (t === 'market_cancel') { return 'Cancelled a listing of ' + cardLabel(e.k) + ' at ' + aud(e.price) + ''; }
+  if (t === 'auction_list') { return 'Started an auction for ' + cardLabel(e.k) + ' (' + e.r + ') from ' + aud(e.start) + ', ' + e.hours + 'h'; }
+  if (t === 'auction_bid') { return 'Bid ' + aud(e.amount) + ' on ' + cardLabel(e.k) + ' from ' + (e.seller || '?'); }
+  if (t === 'auction_sold') { return 'Auction of ' + cardLabel(e.k) + ' sold to ' + e.to + ' for ' + aud(e.price) + ' (fee ' + aud(e.fee) + ')'; }
+  if (t === 'auction_won') { return 'Won the auction for ' + cardLabel(e.k) + ' at ' + aud(e.price) + ''; }
   if (t === 'auction_unsold') { return 'Auction of ' + cardLabel(e.k) + ' ended with no bids, card returned'; }
   if (t === 'auction_cancel') { return 'Cancelled an auction of ' + cardLabel(e.k); }
-  if (t === 'auction_refund') { return 'Outbid on ' + cardLabel(e.k) + ', refunded ' + e.amount + ' coins'; }
+  if (t === 'auction_refund') { return 'Outbid on ' + cardLabel(e.k) + ', refunded ' + aud(e.amount) + ''; }
   if (t === 'admin') { return 'Admin change (' + e.op + ') by ' + (e.by || '?') + ': ' + (e.text || ''); }
   return t;
 }
@@ -330,14 +330,14 @@ function drawBank() {
   let lines = '';
   for (let i = 0; i < b.log.length && i < 8; i++) {
     lines += '<div class="adm-line"><span class="adm-time">' + esc(fmtTime(b.log[i].t)) + '</span> ' +
-      (b.log[i].amount || 0).toLocaleString() + ' coins: ' + esc(b.log[i].note || '') + '</div>';
+      aud((b.log[i].amount || 0)) + ': ' + esc(b.log[i].note || '') + '</div>';
   }
   box.innerHTML = '<div class="adm-sec" style="margin-top:6px">Marketplace bank</div>' +
-    '<div class="adm-grid"><div><b>Available</b><br>' + (b.fees - b.paid).toLocaleString() + ' coins</div>' +
-    '<div><b>Fees collected</b><br>' + b.fees.toLocaleString() + ' (' + b.sales + ' sales)</div>' +
-    '<div><b>Paid out</b><br>' + b.paid.toLocaleString() + '</div></div>' +
+    '<div class="adm-grid"><div><b>Available</b><br>' + aud((b.fees - b.paid)) + '</div>' +
+    '<div><b>Fees collected</b><br>' + aud(b.fees) + ' (' + b.sales + ' sales)</div>' +
+    '<div><b>Paid out</b><br>' + aud(b.paid) + '</div></div>' +
     '<div class="dev-note">Fees are 5% of each sale. Paying a giveaway to a player (open them, tick "pay from bank") records it here. You can also record a payout you made some other way:</div>' +
-    '<div class="adm-edit"><input class="dev-input" id="bank-amt" type="number" min="1" placeholder="Coins" style="width:110px"> ' +
+    '<div class="adm-edit"><input class="dev-input" id="bank-amt" type="number" min="0.2" placeholder="Amount (A$)" step="0.2" style="width:130px"> ' +
     '<input class="dev-input" id="bank-note" placeholder="Note (e.g. Discord giveaway)" style="width:240px"> ' +
     '<button class="dev-btn" data-act="bankrecord">Record payout</button></div>' +
     '<div class="dev-msg" id="bank-msg"></div>' + (lines || '<div class="tempty">No payouts recorded yet.</div>');
@@ -376,12 +376,12 @@ function drawList() {
     let name = String(u.data.name || '(no name)');
     if (adm.filter && name.toLowerCase().indexOf(adm.filter) === -1) { continue; }
     let unique = Object.keys(parseCards(u.data.cardsJson)).length;
-    rows += '<tr data-act="open" data-uid="' + esc(u.uid) + '"><td>' + esc(name) + ((adm.hidden && adm.hidden[u.uid]) ? ' <span class="dev-note">(hidden from leaderboard)</span>' : '') + '</td><td>' + (u.data.coins || 0).toLocaleString() +
+    rows += '<tr data-act="open" data-uid="' + esc(u.uid) + '"><td>' + esc(name) + ((adm.hidden && adm.hidden[u.uid]) ? ' <span class="dev-note">(hidden from leaderboard)</span>' : '') + '</td><td>' + aud(u.data.coins || 0) +
       '</td><td>' + (u.data.packs || 0) + '</td><td>' + unique + '</td><td>' + esc(fmtTime(u.data.updated)) + '</td></tr>';
   }
   adm.root.innerHTML = '<div id="adm-bank"></div><div id="adm-announce"></div><div class="dev-note">' + adm.users.length + ' player(s). Click one to see everything about them.</div>' +
     '<input class="dev-input" id="adm-filter" placeholder="Filter by username" value="' + esc(adm.filter) + '">' +
-    '<table class="adm-table"><tr><th>Username</th><th>Coins</th><th>Packs</th><th>Unique cards</th><th>Last saved</th></tr>' + rows + '</table>';
+    '<table class="adm-table"><tr><th>Username</th><th>Money</th><th>Packs</th><th>Unique cards</th><th>Last saved</th></tr>' + rows + '</table>';
   drawBank();
   drawAnnounce();
   let f = $('adm-filter');
@@ -530,7 +530,7 @@ function drawDetail() {
   let opsHtml = '';
   for (let i = 0; i < d.ops.length; i++) {
     let o = d.ops[i];
-    let what = o.type === 'coins' ? (o.amount >= 0 ? '+' : '') + o.amount + ' coins' : (o.type === 'cards' ? itemsText(compactItems(o.items)) : 'reset account');
+    let what = o.type === 'coins' ? (o.amount >= 0 ? '+' : '') + aud(o.amount) + '' : (o.type === 'cards' ? itemsText(compactItems(o.items)) : 'reset account');
     opsHtml += '<div class="adm-line"><span class="adm-time">' + esc(fmtTime(o.t)) + '</span> ' + esc(what) + ' by ' + esc(o.byName || '?') + ' [' + (o.done ? 'applied' : 'waiting for player') + ']</div>';
   }
   let errs = d.errors.length ? '<div class="dev-msg">Could not load: ' + esc(d.errors.join(', ')) + '. Check the database rules.</div>' : '';
@@ -546,7 +546,7 @@ function drawDetail() {
     '<button class="dev-btn dev-ghost" data-act="back">&lsaquo; All players</button> <button class="dev-btn dev-ghost" data-act="refresh">Refresh</button>' +
     '<h3 class="adm-h">' + esc(u.name || '(no name)') + '</h3>' + errs +
     '<div class="adm-grid">' +
-    '<div><b>Coins</b><br>' + (u.coins || 0).toLocaleString() + '</div>' +
+    '<div><b>Money</b><br>' + aud(u.coins || 0) + '</div>' +
     '<div><b>Packs opened</b><br>' + (u.packs || 0) + '</div>' +
     '<div><b>Unique / total cards</b><br>' + keys.length + ' / ' + total + '</div>' +
     '<div><b>Daily streak</b><br>' + (u.streak || 0) + '</div>' +
@@ -561,9 +561,9 @@ function drawDetail() {
     scoreHtml +
     '<div class="adm-sec">Edit this player</div>' +
     '<div class="dev-note">Changes are queued and apply the next time the player has the game open.</div>' +
-    '<div class="adm-edit"><input class="dev-input" id="adm-coins" type="number" placeholder="Coins to add (negative removes)" style="width:220px"> ' +
+    '<div class="adm-edit"><input class="dev-input" id="adm-coins" type="number" placeholder="A$ to add (negative removes)" step="0.2" style="width:220px"> ' +
     '<label class="dev-note"><input type="checkbox" id="adm-frombank"> Pay from marketplace bank (giveaway)</label> ' +
-    '<button class="dev-btn" data-act="sendcoins">Send coins change</button></div>' +
+    '<button class="dev-btn" data-act="sendcoins">Send money change</button></div>' +
     '<div class="adm-edit"><button class="dev-btn' + (adm.mode === 'give' ? '' : ' dev-ghost') + '" data-act="modegive">Give cards</button> ' +
     '<button class="dev-btn' + (adm.mode === 'take' ? '' : ' dev-ghost') + '" data-act="modetake">Take cards</button> ' +
     (adm.mode === 'give' ? '<select class="dev-input" id="adm-rarity" style="width:auto">' + rarityOptions + '</select> ' : '') +
@@ -606,10 +606,10 @@ async function adminClick(e) {
     if (adm.root.querySelector('.adm-picker')) { adm.root.querySelector('.adm-picker').scrollTop = s; }
   }
   else if (act === 'sendcoins') {
-    let amount = Math.floor(Number($('adm-coins').value));
-    if (!amount) { msg('Type a number of coins.'); return; }
-    if (Math.abs(amount) > MAX_COINS) { msg('That is too many coins.'); return; }
-    if (!confirm('Change ' + (adm.detail.user.name || 'this player') + "'s coins by " + amount + '?')) { return; }
+    let amount = audIn($('adm-coins').value);
+    if (!amount) { msg('Type an amount in A$.'); return; }
+    if (Math.abs(amount) > MAX_COINS) { msg('That is too much money.'); return; }
+    if (!confirm('Change ' + (adm.detail.user.name || 'this player') + "'s money by " + aud(amount) + '?')) { return; }
     try {
       await sendOp({ type: 'coins', amount: amount });
       if (amount > 0 && $('adm-frombank') && $('adm-frombank').checked) {
@@ -633,10 +633,10 @@ async function adminClick(e) {
     } catch (err) { am.textContent = 'Could not save. Check the database rules (announcements).'; }
   }
   else if (act === 'bankrecord') {
-    let amt = Math.floor(Number($('bank-amt').value));
+    let amt = audIn($('bank-amt').value);
     let note = String($('bank-note').value || '').slice(0, 100);
     let bm = $('bank-msg');
-    if (!(amt >= 1)) { bm.textContent = 'Type a number of coins.'; return; }
+    if (!(amt >= 1)) { bm.textContent = 'Type an amount in A$.'; return; }
     try {
       await addDoc(collection(db, 'bankLog'), { amount: amt, note: note || 'Payout', by: adm.me.uid, t: Date.now() });
       adm.bank = null;
@@ -668,7 +668,7 @@ async function adminClick(e) {
   }
   else if (act === 'reset') {
     let name = adm.detail.user.name || 'this player';
-    if (!confirm('RESET ' + name + '? This wipes their cards and coins.')) { return; }
+    if (!confirm('RESET ' + name + '? This wipes their cards and money.')) { return; }
     if (!confirm('Really reset ' + name + '? This cannot be undone.')) { return; }
     try { await sendOp({ type: 'reset' }); openUser(adm.uid); setTimeout(function () { msg('Queued.', true); }, 600); }
     catch (err) { msg('Could not queue that. Check the database rules.'); }

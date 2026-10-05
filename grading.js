@@ -158,7 +158,7 @@ function gradeSubmit(key, tierId) {
   if (!tier || !card || card.count < 1 || card.rarity === 'Energy') { return; }
   let subs = grSubs();
   if (subs.length >= gradeMax) { toast('You can only have ' + gradeMax + ' cards at the grader at once.'); return; }
-  if (coins < tier.cost) { toast('Not enough coins (' + tier.cost.toLocaleString() + ' needed).'); return; }
+  if (coins < tier.cost) { toast('Not enough money (' + aud(tier.cost) + ' needed).'); return; }
   // your best copy goes
   let g = scoresOf(card, key);
   let bestAt = 0;
@@ -300,7 +300,7 @@ function gradeSellSlab(id) {
   let slab = slabs[id];
   if (!slab) { return; }
   let value = slabSellValue(slab);
-  if (!confirm('Quick-sell this grade ' + slab.grade + ' slab for ' + value + ' coins?')) { return; }
+  if (!confirm('Quick-sell this grade ' + slab.grade + ' slab for ' + aud(value) + '?')) { return; }
   slabTake(id);
   addCoins(value);
   logEvent('slab_sell', { k: slab.key, r: slab.rarity, grade: slab.grade, coins: value });
@@ -336,7 +336,7 @@ function renderGrading() {
   let tiers = '';
   for (let i = 0; i < gradeTiers.length; i++) {
     let t = gradeTiers[i];
-    tiers += '<button class="gr-tier' + (gradeTierPick === t.id ? ' sel' : '') + '" data-gtier="' + t.id + '"><b>' + t.name + '</b><br>' + t.hours + ' hour' + (t.hours === 1 ? '' : 's') + '<br>' + t.cost.toLocaleString() + ' coins</button>';
+    tiers += '<button class="gr-tier' + (gradeTierPick === t.id ? ' sel' : '') + '" data-gtier="' + t.id + '"><b>' + t.name + '</b><br>' + t.hours + ' hour' + (t.hours === 1 ? '' : 's') + '<br>' + aud(t.cost) + '</button>';
   }
   let pickCard = gradePick ? loadCollection().cards[gradePick] : null;
   if (!pickCard) { gradePick = ''; }
@@ -378,7 +378,7 @@ document.addEventListener('click', function (e) {
   else if (t.id === 'gr-send' && gradePick) {
     let tier = gradeTier(gradeTierPick);
     if (!tier) { return; }
-    if (!confirm('Send this card for grading (' + tier.name + ', ' + tier.cost.toLocaleString() + ' coins, ' + tier.hours + ' hour' + (tier.hours === 1 ? '' : 's') + ')?')) { return; }
+    if (!confirm('Send this card for grading (' + tier.name + ', ' + aud(tier.cost) + ', ' + tier.hours + ' hour' + (tier.hours === 1 ? '' : 's') + ')?')) { return; }
     let key = gradePick;
     gradePick = '';
     gradeSubmit(key, tier.id);

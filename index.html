@@ -688,6 +688,21 @@
   html.dark .pf-badge { background: #3a3315; border-color: #b8942a; }
   html.dark .link-btn, html.dark a { color: #8ab4ff; }
   html.dark .ann-text { color: inherit; }
+  /* V2.1 stall */
+  .st-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 14px; }
+  .st-banner.d1 { border-top: 6px solid #e57373; background-image: repeating-linear-gradient(90deg, rgba(229,115,115,0.12) 0 20px, transparent 20px 40px); }
+  .st-banner.d2 { border-top: 6px solid #7c4dff; box-shadow: 0 0 14px rgba(124,77,255,0.5); }
+  .st-banner.d3 { border-top: 6px solid #ffca28; background-image: linear-gradient(135deg, rgba(255,202,40,0.18), transparent 60%); }
+  .st-banner.d4 { border-top: 6px solid #ffd54f; box-shadow: 0 0 18px rgba(255,213,79,0.6); background-image: linear-gradient(135deg, rgba(255,213,79,0.25), rgba(124,77,255,0.15)); }
+  .st-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+  .st-slot { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 6px; text-align: center; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .st-slot.empty { justify-content: center; min-height: 150px; opacity: 0.5; border: 2px dashed rgba(255,255,255,0.2); background: none; }
+  .st-slot img { width: 100%; border-radius: 6px; }
+  .st-slot.slab { box-shadow: 0 0 8px rgba(255,215,0,0.5); }
+  .st-price { width: 100%; padding: 4px; font-size: 13px; text-align: center; }
+  .st-fair, .st-dim { opacity: 0.65; font-size: 12px; }
+  .st-up { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .st-log { padding: 4px 0; font-size: 14px; }
   /* V2.0 grading */
   .mk-cond.slabtag { color: #8a6d00; }
   .gr-tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 10px 0; }
@@ -741,7 +756,7 @@
 <body>
   <div id="announce-banner" style="display:none"></div>
   <div class="dev-overlay" id="dev-overlay"><div class="dev-box" id="dev-box"></div></div>
-  <div class="ver-label">V2.0</div>
+  <div class="ver-label">V2.1</div>
   <button class="sound-btn acct-btn" id="acct-btn">Sign in</button>
   <div class="dev-overlay" id="acct-overlay"><div class="dev-box" id="acct-box"></div></div>
   <button class="sound-btn" id="sound-btn" onclick="toggleSound()">Sound: on</button>
@@ -749,7 +764,7 @@
   <h1>Pokemon Pack Simulator</h1>
   <p class="subtitle">30th Celebration</p>
   <div class="shop-bar">
-    <span class="coin-pill" id="coin-pill">Coins: <b id="coin-count">0</b></span>
+    <span class="coin-pill" id="coin-pill">Balance: <b id="coin-count">A$0</b></span>
     <button class="daily-btn" id="daily-btn" onclick="claimDaily()">Claim daily reward</button>
   </div>
   <div class="set-pick"><button class="tab active" id="mode-normal" onclick="setMode('normal')">Normal</button> <button class="tab" id="mode-unlimited" onclick="setMode('unlimited')">Unlimited</button>
@@ -757,7 +772,7 @@
   <div class="set-pick"><label>Set <select id="set-select" class="sort-select" onchange="changeSet(this.value)">
     <option value="30th">30th Celebration</option>
     <option value="asc">Ascended Heroes</option>
-    <option value="tu">Team Up (3000 coins)</option>
+    <option value="tu">Team Up (A$600)</option>
     <option value="pe">Prismatic Evolutions</option>
     <option value="pf">Paldean Fates</option>
   </select></label></div>
@@ -776,6 +791,7 @@
       <button class="tab" id="tab-auction" onclick="showView('auction')">Auctions</button>
       <button class="tab" id="tab-board" onclick="showView('board')">Leaderboard</button>
       <button class="tab" id="tab-grading" onclick="showView('grading')">Grading</button>
+      <button class="tab" id="tab-stall" onclick="showView('stall')">Stall</button>
       <button class="tab" id="tab-ach" onclick="showView('achievements')">Achievements</button>
       <button class="tab" id="tab-shop" onclick="showView('shop')">Shop</button>
     </div>
@@ -784,6 +800,7 @@
     <div id="auction-view" style="display:none"><div id="auction-root"></div></div>
     <div id="board-view" style="display:none"><div id="profile-root" style="display:none"></div><div id="feed-root"></div><div id="board-root"></div></div>
     <div id="grade-view" style="display:none"><div id="grade-root"></div></div>
+    <div id="stall-view" style="display:none"><div id="stall-root"></div></div>
     <div id="ach-view" style="display:none"><div id="ach-root"></div></div>
     <div id="shop-view" style="display:none"><div id="shop-root"></div></div>
     <div id="binder-view" style="display:none">
@@ -850,21 +867,22 @@
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=34"></script>
+  <script src="script.js?v=36"></script>
   <script type="module" src="cloud.js"></script>
-  <script type="module" src="trade.js"></script>
-  <script type="module" src="admin.js"></script>
+  <script type="module" src="trade.js?v=2"></script>
+  <script type="module" src="admin.js?v=2"></script>
   <script src="binders.js?v=5"></script>
-  <script src="quests.js?v=1"></script>
-  <script type="module" src="market.js"></script>
-  <script type="module" src="auction.js"></script>
-  <script type="module" src="leaderboard.js"></script>
+  <script src="quests.js?v=2"></script>
+  <script type="module" src="market.js?v=2"></script>
+  <script type="module" src="auction.js?v=2"></script>
+  <script type="module" src="leaderboard.js?v=3"></script>
   <script type="module" src="profile.js"></script>
   <script src="effects.js?v=1"></script>
-  <script src="inspect.js?v=1"></script>
-  <script src="cosmetics.js?v=1"></script>
-  <script src="achievements.js?v=5"></script>
-  <script src="grading.js?v=2"></script>
+  <script src="inspect.js?v=2"></script>
+  <script src="cosmetics.js?v=2"></script>
+  <script src="achievements.js?v=6"></script>
+  <script src="grading.js?v=3"></script>
+  <script src="stall.js?v=2"></script>
   <script type="module" src="announce.js"></script>
   <script type="module" src="feed.js"></script>
 </body>

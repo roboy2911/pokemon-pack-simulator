@@ -129,7 +129,7 @@ function tile(a, id, mode) {
   let c = me();
   let mine = c && a.seller === c.uid;
   let n = bidsOf(a);
-  let priceLine = n > 0 ? 'Bid: ' + num(a.bid).toLocaleString() + ' coins' : 'Start: ' + num(a.start).toLocaleString() + ' coins';
+  let priceLine = n > 0 ? 'Bid: ' + aud(num(a.bid)) + '' : 'Start: ' + aud(num(a.start)) + '';
   let who = n > 0 ? '<div class="mk-seller">Top: ' + esc(a.bidderName || '?') + ' (' + n + ' bid' + (n === 1 ? '' : 's') + ')</div>' : '<div class="mk-seller">No bids yet</div>';
   let action = '';
   let ended = (a.ends || 0) <= Date.now();
@@ -145,9 +145,9 @@ function tile(a, id, mode) {
     } else {
       let min = nextMin(a);
       let val = ui.bids[id] !== undefined ? ui.bids[id] : min;
-      action = '<div class="au-bidrow"><input type="number" min="' + min + '" value="' + esc(val) + '" data-bid-input="' + esc(id) + '">' +
+      action = '<div class="au-bidrow"><input type="number" min="' + audVal(min) + '" step="0.2" value="' + esc(ui.bids[id] !== undefined ? val : audVal(val)) + '" data-bid-input="' + esc(id) + '">' +
         '<button class="dev-btn" data-act="bid" data-id="' + esc(id) + '">Bid</button></div>' +
-        '<div class="mk-note">Min ' + min.toLocaleString() + '</div>';
+        '<div class="mk-note">Min ' + aud(min) + '</div>';
     }
   } else if (mode === 'mine') {
     if (n === 0 && !ended) {
@@ -172,7 +172,7 @@ function render() {
   }
   if (!$('au-browse')) {
     root.innerHTML =
-      '<div class="tcard"><h3>Auctions</h3><div class="tlabel">Put a card up for a timed auction. The highest bid when time runs out wins. Coins for a bid are held until someone outbids you, then you get them back. A bid in the last 2 minutes extends the timer. A 5% fee is taken from the winning bid and goes to the community bank for giveaways.</div></div>' +
+      '<div class="tcard"><h3>Auctions</h3><div class="tlabel">Put a card up for a timed auction. The highest bid when time runs out wins. Money for a bid is held until someone outbids you, then you get them back. A bid in the last 2 minutes extends the timer. A 5% fee is taken from the winning bid and goes to the community bank for giveaways.</div></div>' +
       '<div id="au-sell"></div><div class="tsec-title">Live auctions</div><div id="au-filters"></div><div id="au-browse"></div>' +
       '<div class="tsec-title">Your bids</div><div id="au-bids"></div>' +
       '<div class="tsec-title">Your auctions</div><div id="au-mine"></div>';
@@ -239,9 +239,9 @@ function drawBids() {
     let winning = c && a.bidder === c.uid;
     let text;
     if (a.status === 'open') {
-      text = winning ? 'You are winning at ' + num(a.bid).toLocaleString() + ' coins (' + timeLeft(a) + ')' : 'Outbid, now at ' + num(a.bid).toLocaleString() + ' coins (' + timeLeft(a) + ')';
+      text = winning ? 'You are winning at ' + aud(num(a.bid)) + ' (' + timeLeft(a) + ')' : 'Outbid, now at ' + aud(num(a.bid)) + ' (' + timeLeft(a) + ')';
     } else if (a.status === 'sold') {
-      text = winning ? 'You won it for ' + num(a.bid).toLocaleString() + ' coins' : 'Lost (sold for ' + num(a.bid).toLocaleString() + ' coins), your coins were refunded';
+      text = winning ? 'You won it for ' + aud(num(a.bid)) + '' : 'Lost (sold for ' + aud(num(a.bid)) + '), your money was refunded';
     } else {
       text = 'Closed';
     }
@@ -263,7 +263,7 @@ function drawMine() {
     else if (n < 8) {
       let card = cardOf(a);
       if (!card) { continue; }
-      let text = a.status === 'sold' ? 'Sold to ' + (a.bidderName || '?') + ' for ' + num(a.bid).toLocaleString() + ' coins' : (a.status === 'unsold' ? 'No bids, returned' : 'Cancelled, returned');
+      let text = a.status === 'sold' ? 'Sold to ' + (a.bidderName || '?') + ' for ' + aud(num(a.bid)) + '' : (a.status === 'unsold' ? 'No bids, returned' : 'Cancelled, returned');
       hist += '<div class="adm-line">' + esc(label(a.card.key)) + ' (' + esc(card.rarity) + '): ' + esc(text) + '</div>';
       n++;
     }
@@ -318,7 +318,7 @@ function drawSell() {
       ui.cond = nmN ? 'NM' : 'LP';
     }
     hint = '<div class="tlabel">Selected: ' + esc(label(ui.pick)) + ' (' + esc(c.rarity) + '), you own ' + c.count +
-      '. Quick-sell value: ' + sellValue(c.rarity, ui.pick) + ' coins.' + condPick + '</div>';
+      '. Quick-sell value: ' + aud(sellValue(c.rarity, ui.pick)) + '.' + condPick + '</div>';
   }
   let durOpts = '';
   for (let i = 0; i < DURATIONS.length; i++) {
@@ -327,7 +327,7 @@ function drawSell() {
   box.innerHTML = '<div class="tcard"><h3>Start an auction</h3>' +
     (keys.length ? '<div class="tpicker">' + grid + '</div>' : '<div class="tempty">You have no cards to auction.</div>') +
     (slabGrid ? '<div class="tlabel" style="margin-top:8px">Graded slabs</div><div class="tpicker">' + slabGrid + '</div>' : '') + hint +
-    '<div class="adm-edit">Starting bid: <input class="tinput tcoin-in" id="au-price" type="number" min="1" placeholder="coins" value="' + esc(ui.price) + '"> ' +
+    '<div class="adm-edit">Starting bid: <input class="tinput tcoin-in" id="au-price" type="number" min="0.2" step="0.2" placeholder="A$" value="' + esc(ui.price) + '"> ' +
     'Length: <select class="tinput" id="au-hours">' + durOpts + '</select> ' +
     '<button class="dev-btn" data-act="start">Start auction</button></div>' +
     '<div class="tmsg" id="au-msg"></div></div>';
@@ -351,8 +351,8 @@ async function startAuction() {
   let cards = loadCollection().cards;
   let slabSel = ui.slab ? grSlabs()[ui.slab] : null;
   if (!slabSel && (!ui.pick || !cards[ui.pick])) { setMsg('Tap a card to auction first.'); return; }
-  let start = Math.floor(Number(ui.price));
-  if (!(start >= 1) || start > MAX_PRICE) { setMsg('Enter a starting bid between 1 and ' + MAX_PRICE.toLocaleString() + ' coins.'); return; }
+  let start = audIn(ui.price);
+  if (!(start >= 1) || start > MAX_PRICE) { setMsg('Enter a starting bid between 1 and ' + aud(MAX_PRICE) + '.'); return; }
   let hours = DURATIONS.some(function (d) { return d[0] === Number(ui.hours); }) ? Number(ui.hours) : 24;
   if (myOpenCount() >= MAX_OPEN) { setMsg('You can run at most ' + MAX_OPEN + ' auctions at once.'); return; }
   let key = slabSel ? slabSel.key : ui.pick;
@@ -399,7 +399,7 @@ async function startAuction() {
   drawSell();
   if (ok) {
     logAuction('auction_list', { k: key, r: card.rarity, start: start, hours: hours });
-    setMsg('Auction started for ' + label(key) + ' at ' + start.toLocaleString() + ' coins.', true);
+    setMsg('Auction started for ' + label(key) + ' at ' + aud(start) + '.', true);
   } else {
     setMsg('Could not start that (' + (err || 'no card') + '). Nothing was lost. If it says permission-denied, publish the new database rules.');
   }
@@ -426,12 +426,12 @@ async function placeBid(id) {
   if (!card || a.status !== 'open' || a.seller === c.uid || a.bidder === c.uid) { return; }
   if ((a.ends || 0) <= Date.now()) { $('info').innerText = 'That auction has ended.'; return; }
   if (bidsOf(a) >= MAX_BIDS) { $('info').innerText = 'That auction has reached its bid limit.'; return; }
-  let amount = Math.floor(Number($('au-browse').querySelector('[data-bid-input="' + id + '"]').value));
+  let amount = audIn($('au-browse').querySelector('[data-bid-input="' + id + '"]').value);
   let min = nextMin(a);
-  if (!(amount >= min)) { $('info').innerText = 'Your bid must be at least ' + min.toLocaleString() + ' coins.'; return; }
+  if (!(amount >= min)) { $('info').innerText = 'Your bid must be at least ' + aud(min) + '.'; return; }
   if (amount > MAX_PRICE) { $('info').innerText = 'That bid is too high.'; return; }
-  if (coins < amount) { $('info').innerText = 'Not enough coins (' + amount.toLocaleString() + ' needed).'; return; }
-  if (!confirm('Bid ' + amount.toLocaleString() + ' coins on ' + label(a.card.key) + ' (' + card.rarity + ')? Your coins are held until you are outbid.')) { return; }
+  if (coins < amount) { $('info').innerText = 'Not enough money (' + aud(amount) + ' needed).'; return; }
+  if (!confirm('Bid ' + aud(amount) + ' on ' + label(a.card.key) + ' (' + card.rarity + ')? Your money is held until you are outbid.')) { return; }
   busy = true;
   coins = coins - amount;
   saveCoins();
@@ -462,7 +462,7 @@ async function placeBid(id) {
   delete ui.bids[id];
   logAuction('auction_bid', { k: a.card.key, amount: amount, seller: a.sellerName || '' });
   if (window.questEvent) { window.questEvent('bid'); }
-  $('info').innerText = 'Bid placed: ' + amount.toLocaleString() + ' coins on ' + label(a.card.key) + '.';
+  $('info').innerText = 'Bid placed: ' + aud(amount) + ' on ' + label(a.card.key) + '.';
   runProcess();
 }
 
@@ -508,7 +508,7 @@ async function processAll() {
       if (did) {
         logAuction('auction_sold', { k: a.card.key, price: price, fee: feeFor(price), to: a.bidderName || '' });
         if (window.achEvent) { window.achEvent('sold'); }
-        notes.push('Your ' + label(a.card.key) + ' sold at auction for ' + got.toLocaleString() + ' coins.');
+        notes.push('Your ' + label(a.card.key) + ' sold at auction for ' + aud(got) + '.');
       }
     } else if (card) {
       let did = await pay('aucret:' + id, function () { addOne(a.card.key, card, scoreOfCard(card)); });
@@ -538,7 +538,7 @@ async function processAll() {
       let did = await pay('aucref:' + id + ':' + e.s, function () { coins = coins + amt; });
       if (did) {
         logAuction('auction_refund', { k: a.card ? a.card.key : '', amount: amt });
-        notes.push('You were outbid on ' + label(a.card.key) + '. ' + amt.toLocaleString() + ' coins refunded.');
+        notes.push('You were outbid on ' + label(a.card.key) + '. ' + aud(amt) + ' refunded.');
       }
     }
     if (a.status === 'sold' && a.bidder === c.uid && !a.winnerDone) {
@@ -548,7 +548,7 @@ async function processAll() {
         if (did) {
           logAuction('auction_won', { k: a.card.key, price: num(a.bid) });
           if (window.achEvent) { window.achEvent('win'); }
-          notes.push('You won ' + label(a.card.key) + ' for ' + num(a.bid).toLocaleString() + ' coins!');
+          notes.push('You won ' + label(a.card.key) + ' for ' + aud(num(a.bid)) + '!');
         }
       }
       try {

@@ -170,7 +170,7 @@ function thumbs(items, coinsAmt, slabs) {
   html += slabThumbs(sl);
   if (!keys.length && !sl.length && !coinsAmt) { html = '<span class="tempty">Nothing</span>'; }
   let c = coinsClamp(coinsAmt);
-  let coinsLine = c ? '<div class="tcoins">+ ' + c.toLocaleString() + ' coins</div>' : '';
+  let coinsLine = c ? '<div class="tcoins">+ ' + aud(c) + '</div>' : '';
   return '<div class="tthumbs">' + html + '</div>' + coinsLine;
 }
 
@@ -293,13 +293,13 @@ function renderNew() {
     box.innerHTML = '<div class="tcard"><h3>Trade with ' + esc(draft.friend.name) + ' <button class="link-btn" data-act="change">change</button></h3>' +
       '<div class="trow">' +
       '<div class="tside"><div class="tlabel">You give (tap cards to add, - to remove)</div>' + pickerHtml('give', mine) + slabPickerHtml('give', mySlabs()) +
-      '<div class="tcoins">Coins: <input class="tinput tcoin-in" id="trade-give-coins" type="number" min="0" value="' + draft.giveCoins + '"> (you have ' + coins.toLocaleString() + ')</div></div>' +
+      '<div class="tcoins">Money (A$): <input class="tinput tcoin-in" id="trade-give-coins" type="number" min="0" step="0.2" value="' + audVal(draft.giveCoins) + '"> (you have ' + aud(coins) + ')</div></div>' +
       '<div class="tside"><div class="tlabel">You get</div>' + pickerHtml('get', draft.friend.cards) + slabPickerHtml('get', draft.friend.slabs || {}) +
-      '<div class="tcoins">Coins: <input class="tinput tcoin-in" id="trade-get-coins" type="number" min="0" value="' + draft.getCoins + '"> (they have ' + coinsClamp(draft.friend.coins).toLocaleString() + ')</div></div>' +
+      '<div class="tcoins">Money (A$): <input class="tinput tcoin-in" id="trade-get-coins" type="number" min="0" step="0.2" value="' + audVal(draft.getCoins) + '"> (they have ' + aud(coinsClamp(draft.friend.coins)) + ')</div></div>' +
       '</div><div class="tbtns"><button class="dev-btn" data-act="send">Send offer</button></div>' +
       '<div class="tmsg" id="trade-msg"></div></div>';
-    $('trade-give-coins').oninput = function () { draft.giveCoins = coinsClamp(this.value); };
-    $('trade-get-coins').oninput = function () { draft.getCoins = coinsClamp(this.value); };
+    $('trade-give-coins').oninput = function () { draft.giveCoins = coinsClamp(audIn(this.value)); };
+    $('trade-get-coins').oninput = function () { draft.getCoins = coinsClamp(audIn(this.value)); };
   }
   if (keepMsg) { setMsg(keepMsg, keepOk); }
 }
@@ -399,7 +399,7 @@ async function sendOffer() {
   if (!giveItems_.length && !getItems_.length && !giveSl.length && !getSl.length && !giveCoins && !getCoins) { setMsg('Add something to the offer first.'); return; }
   if (giveItems_.length > MAX_ITEMS || getItems_.length > MAX_ITEMS) { setMsg('Too many different cards (max ' + MAX_ITEMS + ' per side).'); return; }
   let giveMap = itemsToMap(giveItems_);
-  if (!owns(giveMap, giveCoins) || !ownsSlabs(giveSl)) { setMsg("You don't have enough of those cards or coins."); return; }
+  if (!owns(giveMap, giveCoins) || !ownsSlabs(giveSl)) { setMsg("You don't have enough of those cards or that much money."); return; }
   busy = true;
   setMsg('Sending...', true);
   // Your side of the offer is held in the trade until it is accepted or cancelled.

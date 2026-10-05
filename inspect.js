@@ -36,7 +36,7 @@ function inspectCard(key) {
     rows += '<div class="insp-row"><span>Condition</span><b>' + (nm ? nm + ' Near Mint' : '') + (nm && lp ? ', ' : '') + (lp ? lp + ' Lightly Played' : '') + '</b></div>';
   }
   if (id) { rows += '<div class="insp-row"><span>Market price</span><b>' + esc(priceText(id)) + '</b></div>'; }
-  rows += '<div class="insp-row"><span>Quick-sell</span><b>' + sellValue(card.rarity, key) + ' coins</b></div>';
+  rows += '<div class="insp-row"><span>Quick-sell</span><b>' + aud(sellValue(card.rarity, key)) + '</b></div>';
   let img = '';
   if (card.img) {
     img = '<img src="' + esc(card.img) + '" alt="" draggable="false">';

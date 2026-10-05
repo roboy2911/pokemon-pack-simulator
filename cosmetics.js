@@ -78,8 +78,8 @@ function setTheme(name) {
 function cosBuy(kind, id) {
   let it = cosItem(kind, id);
   if (!it || cosOwns(kind, id)) { return; }
-  if (coins < it.price) { toast('Not enough coins (' + it.price.toLocaleString() + ' needed).'); return; }
-  if (!confirm('Buy ' + it.name + ' for ' + it.price.toLocaleString() + ' coins?')) { return; }
+  if (coins < it.price) { toast('Not enough money (' + aud(it.price) + ' needed).'); return; }
+  if (!confirm('Buy ' + it.name + ' for ' + aud(it.price) + '?')) { return; }
   coins = coins - it.price;
   settled['cos:own:' + kind + ':' + id] = true;
   settled['cos:eq:' + kind] = id;
@@ -119,7 +119,7 @@ function renderShop() {
     '<button class="dev-btn' + (dark ? '' : ' dev-ghost') + '" data-shop="theme" data-v="dark">Dark</button> ' +
     '<button class="dev-btn' + (fxOn ? '' : ' dev-ghost') + '" data-shop="fx">Pull effects: ' + (fxOn ? 'on' : 'off') + '</button></div>' +
     '<div class="tlabel">Pull effects are the sparkles and confetti when you reveal a rare card.</div></div>' +
-    '<div class="tcard"><h3>Coin shop</h3><div class="tlabel">Spend coins on looks. Titles and frames show on your profile. You have <b>' + coins.toLocaleString() + '</b> coins.</div></div>';
+    '<div class="tcard"><h3>Shop</h3><div class="tlabel">Spend your money on looks. Titles and frames show on your profile. You have <b>' + aud(coins) + '</b>.</div></div>';
   for (let k = 0; k < cosKinds.length; k++) {
     let kind = cosKinds[k][0];
     let items = '';
@@ -129,7 +129,7 @@ function renderShop() {
       let on = cosEquipped(kind) === it.id;
       let action = on ? '<span class="q-done">Equipped</span>'
         : (owned ? '<button class="daily-btn" data-shop="equip" data-kind="' + kind + '" data-id="' + it.id + '">Equip</button>'
-          : '<button class="daily-btn" data-shop="buy" data-kind="' + kind + '" data-id="' + it.id + '">' + it.price.toLocaleString() + ' coins</button>');
+          : '<button class="daily-btn" data-shop="buy" data-kind="' + kind + '" data-id="' + it.id + '">' + aud(it.price) + '</button>');
       items += '<div class="shop-item">' + swatch(kind, it) + '<div class="shop-name">' + esc(it.name) + '</div>' + action + '</div>';
     }
     html += '<div class="tcard"><h3>' + cosKinds[k][1] + '</h3><div class="shop-grid">' + items + '</div></div>';
