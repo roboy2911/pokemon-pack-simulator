@@ -176,6 +176,8 @@ let ascMainCount = 217;      // cards 001-217 are the main set, 218-295 are the 
 let ascCacheKey = 'pokemonAscCards_v1';
 let ascCacheMaxAge = 24 * 60 * 60 * 1000;
 let godNow = false;          // true while the pack on screen is a god pack
+let unlimited = false;       // Unlimited mode: free packs, nothing is saved
+let modeStoreKey = 'pokemonPackMode'
 
 // Ascended Heroes pack: 1 energy + 9 cards. Each def is one kind of slot, n = how many of them.
 let ascDefaultDefs = [
@@ -775,13 +777,28 @@ function priceText(id) {
   return '...';
 }
 
+// Re-sorting while someone is scrolling makes the cards jump, so it waits until scrolling stops
+let lastScrollAt = 0;
+let sortTimer = null;
+window.addEventListener('scroll', function () { lastScrollAt = Date.now(); }, { passive: true });
+window.addEventListener('touchmove', function () { lastScrollAt = Date.now(); }, { passive: true });
+
+function scheduleSort() {
+  if (sortTimer) { return; }
+  sortTimer = setTimeout(function () {
+    sortTimer = null;
+    if (Date.now() - lastScrollAt < 700) { scheduleSort(); return; }
+    sortCollectionDom();
+  }, 900);
+}
+
 function updatePriceLabels(id) {
   let labels = document.querySelectorAll('[data-price-id="' + id + '"]');
   for (let i = 0; i < labels.length; i++) {
     labels[i].innerText = priceText(id);
   }
   if (sortMode === 'price') {
-    sortCollectionDom();
+    scheduleSort();
   }
   if (stackCards.length > 0 && topIndex >= stackCards.length) {
     showProgress();
@@ -1028,7 +1045,7 @@ function renderCollection() {
       } else {
         id = priceIdFromUrl(card.img);
       }
-      inner = '<img src="' + esc(card.img) + '" width="' + thumbW + '" data-w="' + thumbW + '" data-h="' + thumbH + '"' + energyAttr + ' onload="fixSideways(this)" onerror="retryImage(this)">';
+      inner = '<img src="' + esc(card.img) + '" width="' + thumbW + '" data-w="' + thumbW + '" data-h="' + thumbH + '"' + energyAttr + ' loading="lazy" decoding="async" onload="fixSideways(this)" onerror="retryImage(this)">';
     } else {
       let safeColor = '#888888';
       if (/^#[0-9a-fA-F]{3,8}$/.test(card.color)) {
@@ -1054,8 +1071,10 @@ function renderCollection() {
   if (html === '') {
     html = '<div class="coll-empty">No cards from this set yet.</div>';
   }
+  let keepY = window.scrollY;
   grid.innerHTML = html;
   sortCollectionDom();
+  if (keepY > 0 && Math.abs(window.scrollY - keepY) > 2) { window.scrollTo(0, keepY); }
 
   let labels = grid.querySelectorAll('[data-price-id]');
   for (let i = 0; i < labels.length; i++) {
@@ -1261,8 +1280,13 @@ function updateShop() {
   if (c) { c.innerText = coins.toLocaleString(); }
   let btn = document.getElementById('open-btn');
   if (btn) {
-    btn.innerText = 'Open Pack · ' + packCost + ' coins';
-    btn.classList.toggle('poor', coins < packCost);
+    if (unlimited) {
+      btn.innerText = 'Open Pack · free';
+      btn.classList.remove('poor');
+    } else {
+      btn.innerText = 'Open Pack · ' + packCost + ' coins';
+      btn.classList.toggle('poor', coins < packCost);
+    }
   }
   let d = document.getElementById('daily-btn');
   if (d) {
@@ -1451,7 +1475,7 @@ function binderSlotHtml(slot, card, w, h) {
     if (card.rarity === 'Energy') {
       energyAttr = ' data-energy="' + esc(card.name) + '"';
     }
-    inner = '<img src="' + esc(card.img) + '" width="' + w + '" data-w="' + w + '" data-h="' + h + '"' + energyAttr + ' onload="fixSideways(this)" onerror="retryImage(this)">';
+    inner = '<img src="' + esc(card.img) + '" width="' + w + '" data-w="' + w + '" data-h="' + h + '"' + energyAttr + ' loading="lazy" decoding="async" onload="fixSideways(this)" onerror="retryImage(this)">';
   } else {
     let safeColor = '#888888';
     if (/^#[0-9a-fA-F]{3,8}$/.test(card.color)) {
@@ -1886,15 +1910,17 @@ function ripPack() {
   }
   packSealed = false;
   playRip();
-  addToCollection(currentItems);
-  let packLog = [];
-  for (let i = 0; i < currentItems.length; i++) { packLog.push({ k: currentItems[i].key, r: currentItems[i].rarity }); }
-  if (godNow) {
-    logEvent('pack', { cards: packLog, god: true });
-  } else {
-    logEvent('pack', { cards: packLog });
+  if (!unlimited) {
+    addToCollection(currentItems);
+    let packLog = [];
+    for (let i = 0; i < currentItems.length; i++) { packLog.push({ k: currentItems[i].key, r: currentItems[i].rarity }); }
+    if (godNow) {
+      logEvent('pack', { cards: packLog, god: true });
+    } else {
+      logEvent('pack', { cards: packLog });
+    }
+    checkRewards();
   }
-  checkRewards();
 
   let myId = packId;
   let pack = document.getElementById('pack');
@@ -2036,13 +2062,15 @@ function openPack() {
     document.getElementById('info').innerText = 'Rip the pack you already bought first!';
     return;
   }
-  if (coins < packCost) {
+  if (!unlimited && coins < packCost) {
     document.getElementById('info').innerText = 'Not enough coins. Sell spare cards or claim your daily reward.';
     return;
   }
-  coins = coins - packCost;
-  saveCoins();
-  updateShop();
+  if (!unlimited) {
+    coins = coins - packCost;
+    saveCoins();
+    updateShop();
+  }
   let items = [];
   godNow = false;
   if (curSet === 'asc') {
@@ -2452,6 +2480,50 @@ function applySet() {
   updateShop();
 }
 
+// ---------- Normal / Unlimited mode ----------
+
+function applyMode() {
+  let coll = document.getElementById('collection');
+  if (coll) { coll.style.display = unlimited ? 'none' : ''; }
+  let ids = ['coin-pill', 'daily-btn'];
+  for (let i = 0; i < ids.length; i++) {
+    let el = document.getElementById(ids[i]);
+    if (el) { el.style.display = unlimited ? 'none' : ''; }
+  }
+  let a = document.getElementById('mode-normal');
+  let b = document.getElementById('mode-unlimited');
+  if (a) { a.classList.toggle('active', !unlimited); }
+  if (b) { b.classList.toggle('active', unlimited); }
+  let note = document.getElementById('mode-note');
+  if (note) {
+    note.innerText = unlimited ? 'Unlimited mode: open as many packs as you like, free. Nothing is saved, and there is no collection, binder, trading, market or leaderboard.' : '';
+  }
+  updateShop();
+}
+
+function setMode(name) {
+  let want = name === 'unlimited';
+  if (want === unlimited) { return; }
+  if (packSealed) {
+    document.getElementById('info').innerText = 'Rip the pack you already opened first, then switch mode.';
+    return;
+  }
+  unlimited = want;
+  try { localStorage.setItem(modeStoreKey, unlimited ? 'unlimited' : 'normal'); } catch (e) {}
+  document.getElementById('pack').innerHTML = '';
+  stackCards = [];
+  topIndex = 0;
+  currentItems = [];
+  document.getElementById('info').innerText = setReady(curSet) ? 'Ready! Click Open Pack.' : 'Loading...';
+  applyMode();
+  if (!unlimited) { renderCollection(); }
+}
+
+function loadMode() {
+  try { unlimited = localStorage.getItem(modeStoreKey) === 'unlimited'; } catch (e) {}
+  applyMode();
+}
+
 function changeSet(value) {
   if (!SETS[value] || value === curSet) { return; }
   curSet = value;
@@ -2719,5 +2791,6 @@ loadSound();
 setupSwipe();
 loadSetChoice();
 applySet();
+loadMode();
 renderCollection();
 loadCards();

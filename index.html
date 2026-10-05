@@ -528,6 +528,23 @@
   .site-footer a { color: #5a554c; font-weight: 600; }
 
   html { -webkit-text-size-adjust: 100%; }
+  @supports (overflow: clip) { body { overflow-x: clip; } }
+  #pack, #pack * { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+  #pack img { pointer-events: none; -webkit-user-drag: none; user-select: none; -webkit-user-select: none; }
+  .coll-card { content-visibility: auto; contain-intrinsic-size: 110px 200px; }
+  .view-tabs { flex-wrap: wrap; }
+  @media (max-width: 600px) {
+    body { padding: 44px 10px 48px; }
+    h1 { font-size: 26px; }
+    .view-tabs { gap: 6px; margin-bottom: 14px; }
+    .tab { padding: 7px 12px; font-size: 13px; }
+    .sound-btn, .acct-btn, .ver-label { position: absolute; }
+    .coll-head { gap: 6px 12px; }
+    #coll-stats { flex-basis: 100%; }
+    .shop-bar { margin-bottom: 10px; }
+    .dev-box { padding: 14px; max-height: 88vh; }
+    .lb-table td { padding: 8px 3px; font-size: 13px; }
+  }
   body:has(.dev-overlay[style*="flex"]) { overflow: hidden; }
   .dev-box, .tpicker { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   .adm-table { display: block; overflow-x: auto; }
@@ -555,9 +572,11 @@
   <h1>Pokemon Pack Simulator</h1>
   <p class="subtitle">30th Celebration</p>
   <div class="shop-bar">
-    <span class="coin-pill">Coins: <b id="coin-count">0</b></span>
+    <span class="coin-pill" id="coin-pill">Coins: <b id="coin-count">0</b></span>
     <button class="daily-btn" id="daily-btn" onclick="claimDaily()">Claim daily reward</button>
   </div>
+  <div class="set-pick"><button class="tab active" id="mode-normal" onclick="setMode('normal')">Normal</button> <button class="tab" id="mode-unlimited" onclick="setMode('unlimited')">Unlimited</button>
+    <div class="dev-note" id="mode-note" style="margin:6px 0 0"></div></div>
   <div class="set-pick"><label>Set <select id="set-select" class="sort-select" onchange="changeSet(this.value)">
     <option value="30th">30th Celebration</option>
     <option value="asc">Ascended Heroes</option>
@@ -628,7 +647,7 @@
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=14"></script>
+  <script src="script.js?v=16"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="trade.js"></script>
   <script type="module" src="admin.js"></script>
