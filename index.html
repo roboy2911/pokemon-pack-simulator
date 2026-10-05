@@ -558,8 +558,9 @@
   @media (max-width: 600px) {
     body { padding: 44px 10px 48px; }
     h1 { font-size: 26px; }
-    .view-tabs { gap: 6px; margin-bottom: 14px; }
-    .tab { padding: 7px 12px; font-size: 13px; }
+    .view-tabs { gap: 6px; margin-bottom: 14px; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 2px 2px 6px; scroll-snap-type: x proximity; }
+    .view-tabs::-webkit-scrollbar { display: none; }
+    .tab { padding: 7px 12px; font-size: 13px; flex: 0 0 auto; white-space: nowrap; scroll-snap-align: center; }
     .sound-btn, .acct-btn, .ver-label { position: absolute; }
     .coll-head { gap: 6px 12px; }
     #coll-stats { flex-basis: 100%; }
@@ -582,6 +583,10 @@
   .mk-seller, .mk-time { color: #8a8478; font-size: 11px; }
   .mk-note { color: #8a8478; margin-top: 6px; font-size: 11px; }
   .mk-btn { margin-top: 6px; padding: 6px 14px; font-size: 12px; width: 100%; }
+  #toast-box { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 3000; display: flex; flex-direction: column; gap: 8px; align-items: center; width: min(92vw, 420px); pointer-events: none; }
+  .toast { background: rgba(30,30,36,0.94); color: #fff; font-size: 13px; padding: 10px 14px; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); animation: toastin 0.25s ease-out; pointer-events: auto; cursor: pointer; max-width: 100%; }
+  .toast.out { opacity: 0; transition: opacity 0.4s; }
+  @keyframes toastin { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
   .binder-switch { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; }
   .mb-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; margin-bottom: 10px; }
   #mb-title { font-weight: 700; font-size: 16px; }
@@ -622,7 +627,7 @@
 </head>
 <body>
   <div class="dev-overlay" id="dev-overlay"><div class="dev-box" id="dev-box"></div></div>
-  <div class="ver-label">V1.7</div>
+  <div class="ver-label">V1.8</div>
   <button class="sound-btn acct-btn" id="acct-btn">Sign in</button>
   <div class="dev-overlay" id="acct-overlay"><div class="dev-box" id="acct-box"></div></div>
   <button class="sound-btn" id="sound-btn" onclick="toggleSound()">Sound: on</button>
@@ -695,6 +700,10 @@
         <select id="coll-sort" class="sort-select" onchange="changeSort(this.value)">
           <option value="price">Price (high to low)</option>
           <option value="rarity">Rarity</option>
+          <option value="newest">Newest first</option>
+          <option value="condition">Condition (best first)</option>
+          <option value="copies">Most copies</option>
+          <option value="number">Card number</option>
         </select>
       </label>
       <button class="link-btn" onclick="sellAllDuplicates()">Sell all spares</button>
@@ -708,6 +717,7 @@
     </div>
   </section>
 
+  <div id="toast-box"></div>
   <footer class="site-footer">
     <div class="footer-discord">Join our community on <a href="https://discord.gg/tugHFgdex" target="_blank" rel="noopener noreferrer">Discord</a> to trade, share pulls and give feedback. <button class="link-btn" id="share-btn" onclick="shareSite()">Share this game</button> <span id="share-note"></span></div>
     Unofficial fan project. Not affiliated with, endorsed by, or sponsored by Nintendo, Creatures Inc., GAME FREAK inc. or The Pok&eacute;mon Company.
@@ -715,7 +725,7 @@
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=20"></script>
+  <script src="script.js?v=21"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="trade.js"></script>
   <script type="module" src="admin.js"></script>

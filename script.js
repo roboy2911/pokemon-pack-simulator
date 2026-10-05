@@ -98,6 +98,9 @@ let sellValues = {
   'RGB Mew': 10000
 };
 let sortMode = 'price';
+let curView = 'collection';
+let badges = { market: 0, auction: 0 };
+let badgeNames = { market: 'Market', auction: 'Auctions' };   // which tab is showing, and unseen-event counts
 let sortStoreKey = 'pokemonPackSort';
 
 // Only pictures from these sites are accepted when importing a backup
@@ -891,7 +894,7 @@ function saveCollection(data) {
 function loadSortMode() {
   try {
     let saved = localStorage.getItem(sortStoreKey);
-    if (saved === 'price' || saved === 'rarity') {
+    if (['price', 'rarity', 'newest', 'condition', 'copies', 'number'].indexOf(saved) !== -1) {
       sortMode = saved;
     }
   } catch (e) {
@@ -929,6 +932,22 @@ function sortCollectionDom() {
       if (pa !== pb) {
         return pb - pa;
       }
+    }
+    if (sortMode === 'newest') {
+      let d = Number(b.dataset.idx) - Number(a.dataset.idx);
+      if (d !== 0) { return d; }
+    }
+    if (sortMode === 'condition') {
+      let d = Number(b.dataset.best) - Number(a.dataset.best);
+      if (d !== 0) { return d; }
+    }
+    if (sortMode === 'copies') {
+      let d = Number(b.dataset.count) - Number(a.dataset.count);
+      if (d !== 0) { return d; }
+    }
+    if (sortMode === 'number') {
+      let d = Number(a.dataset.num) - Number(b.dataset.num);
+      if (d !== 0) { return d; }
     }
     let ra = Number(a.dataset.rank);
     let rb = Number(b.dataset.rank);
@@ -1166,7 +1185,13 @@ function renderCollection() {
     if (rank === -1) {
       rank = 99;
     }
-    html = html + '<div class="coll-card" data-pid="' + esc(id || '') + '" data-rank="' + rank + '" data-key="' + esc(keys[i]) + '">' + inner + badge + price + condLine(card, keys[i]) + sell + '</div>';
+    let best = 0;
+    let gs = scoresOf(card, keys[i]);
+    for (let gi = 0; gi < gs.length; gi++) { if (gs[gi] > best) { best = gs[gi]; } }
+    if (card.rarity === 'Energy') { best = 0; }
+    let numM = String(keys[i]).match(/\/(\d{1,3})[\/.]/);
+    let num = numM ? Number(numM[1]) : 9999;
+    html = html + '<div class="coll-card" data-pid="' + esc(id || '') + '" data-rank="' + rank + '" data-idx="' + i + '" data-best="' + best + '" data-count="' + card.count + '" data-num="' + num + '" data-key="' + esc(keys[i]) + '">' + inner + badge + price + condLine(card, keys[i]) + sell + '</div>';
   }
   if (html === '') {
     html = '<div class="coll-empty">No cards from this set yet.</div>';
@@ -1681,6 +1706,10 @@ function showView(name) {
     if (tab) { tab.classList.toggle('active', v === name); }
   }
   try { localStorage.setItem(viewStoreKey, name); } catch (e) {}
+  curView = name;
+  if (name === 'market' || name === 'auction') { clearBadge(name); }
+  let activeTab = document.getElementById(tabs[name]);
+  if (activeTab && activeTab.scrollIntoView) { try { activeTab.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} }
   if (name === 'binder') { refreshBinders(); }
   if (name === 'trades' && window.renderTrades) { window.renderTrades(); }
   if (name === 'market' && window.renderMarket) { window.renderMarket(); }
@@ -2957,4 +2986,49 @@ function shareSite() {
 // Safe call into the daily quests (quests.js may not be loaded)
 function qe(type, n) {
   if (typeof questEvent === 'function') { questEvent(type, n); }
+}
+
+
+// ---------- Notifications: pop-up messages and tab badges ----------
+
+
+// Small message at the bottom of the screen. Tap it to dismiss.
+function toast(text) {
+  let box = document.getElementById('toast-box');
+  if (!box || !text) { return; }
+  while (box.children.length >= 3) { box.removeChild(box.firstChild); }
+  let el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = String(text).slice(0, 200);
+  box.appendChild(el);
+  let gone = function () {
+    el.classList.add('out');
+    setTimeout(function () { if (el.parentNode) { el.parentNode.removeChild(el); } }, 450);
+  };
+  el.onclick = gone;
+  setTimeout(gone, 6000);
+}
+
+function drawBadge(view) {
+  let tab = document.getElementById('tab-' + view);
+  if (tab) { tab.textContent = badges[view] ? badgeNames[view] + ' (' + badges[view] + ')' : badgeNames[view]; }
+}
+
+// Counts something new on a tab you are not looking at
+function addBadge(view, n) {
+  if (badges[view] === undefined || curView === view) { return; }
+  badges[view] += (n === undefined ? 1 : n);
+  drawBadge(view);
+}
+
+function clearBadge(view) {
+  if (badges[view] === undefined) { return; }
+  badges[view] = 0;
+  drawBadge(view);
+}
+
+// Used by market.js, auction.js and trade.js for each batch of results
+function notifyAll(view, notes) {
+  for (let i = 0; i < notes.length; i++) { toast(notes[i]); }
+  addBadge(view, notes.length);
 }

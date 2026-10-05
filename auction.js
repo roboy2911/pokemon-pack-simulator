@@ -518,7 +518,7 @@ async function processAll() {
     }
   }
 
-  if (notes.length) { $('info').innerText = notes.join(' '); }
+  if (notes.length) { $('info').innerText = notes.join(' '); notifyAll('auction', notes); }
   updateShop();
   refreshGame();
   if (typeof checkRewards === 'function') { checkRewards(); }

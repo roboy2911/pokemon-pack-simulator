@@ -426,7 +426,7 @@ async function processAll() {
       t[flag] = true;
     } catch (e) {}
   }
-  if (notes.length) { $('info').innerText = notes.join(' '); }
+  if (notes.length) { $('info').innerText = notes.join(' '); for (let i = 0; i < notes.length; i++) { toast(notes[i]); } }
   refreshGame();
   if (typeof checkRewards === 'function') { checkRewards(); }
   render();
@@ -439,12 +439,22 @@ function stopListening() {
   unsubs = [];
 }
 
+let listenStart = 0;
+
 function startListening() {
   stopListening();
+  listenStart = Date.now() - 5000;
   let c = me();
   if (!c) { return; }
   let handler = function (snap) {
-    snap.docChanges().forEach(function (ch) { trades[ch.doc.id] = ch.doc.data(); });
+    snap.docChanges().forEach(function (ch) {
+      let t = ch.doc.data();
+      // a brand new offer for me that arrived after I opened the page
+      if (!trades[ch.doc.id] && t.status === 'open' && t.to === c.uid && (t.created || 0) > listenStart) {
+        toast((t.fromName || 'Someone') + ' sent you a trade offer.');
+      }
+      trades[ch.doc.id] = t;
+    });
     render();
     runProcess();
   };

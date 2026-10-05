@@ -461,7 +461,7 @@ async function processAll() {
     } catch (e) {}
   }
 
-  if (notes.length) { $('info').innerText = notes.join(' '); }
+  if (notes.length) { $('info').innerText = notes.join(' '); notifyAll('market', notes); }
   refreshGame();
   if (typeof checkRewards === 'function') { checkRewards(); }
   render();
