@@ -20,7 +20,7 @@ let unsubs = [];
 let chain = Promise.resolve();
 let busy = false;
 let loadErr = '';
-let ui = { rarity: 'All', sort: 'soon', pick: null, cond: 'NM', price: '', hours: 24, bids: {} };
+let ui = { rarity: 'All', sort: 'soon', pick: null, slab: null, cond: 'NM', price: '', hours: 24, bids: {} };
 
 function $(id) { return document.getElementById(id); }
 
@@ -31,7 +31,10 @@ function cardOf(a) {
   let raw = {};
   raw[a.card.key] = { count: 1, rarity: a.card.rarity, img: a.card.img || '', name: a.card.name || '', color: a.card.color || '', g: [a.card.g] };
   let clean = cleanBackup({ cards: raw, packs: 0 });
-  return clean ? clean.cards[a.card.key] : null;
+  let out = clean ? clean.cards[a.card.key] : null;
+  let gr = Math.floor(Number(a.card.grade));
+  if (out && gr >= 1 && gr <= 10) { out.grade = gr; }
+  return out;
 }
 
 function scoreOfCard(card) {
@@ -57,10 +60,19 @@ function logAuction(type, data) {
 function refreshGame() {
   updateShop();
   renderCollection();
+  if (typeof renderGrading === 'function') { renderGrading(); }
 }
 
 function label(key) {
   key = String(key || '');
+  let bs = key.match(/\/base1\/(\d{1,3})[\/.]/);
+  if (bs) { return 'BS #' + Number(bs[1]); }
+  let pf = key.match(/\/sv04\.5\/(\d{3})\//);
+  if (pf) { return 'PF #' + Number(pf[1]); }
+  if (key.indexOf('energy-pf-') === 0) { return key.slice(10) + ' Energy'; }
+  let pe = key.match(/\/sv08\.5\/(\d{3})\//);
+  if (pe) { return 'PE #' + Number(pe[1]); }
+  if (key.indexOf('energy-pe-') === 0) { return key.slice(10) + ' Energy'; }
   let tu = key.match(/\/sm9\/(\d{1,3})[\/.]/);
   if (tu) { return 'TU #' + Number(tu[1]); }
   if (key.indexOf('energy-tu-') === 0) { return key.slice(10) + ' Energy'; }
@@ -88,6 +100,10 @@ function removeOne(key, cond) {
 }
 
 function addOne(key, card, score) {
+  if (card && card.grade && typeof slabAdd === 'function') {
+    slabAdd({ key: key, img: card.img || '', rarity: card.rarity, name: card.name || '', color: card.color || '', score: score >= 0 ? score : 800, grade: card.grade, t: Date.now() });
+    return;
+  }
   let data = loadCollection();
   addCopies(data, key, card, [score]);
   saveCollection(data);
@@ -138,7 +154,7 @@ function tile(a, id, mode) {
       action = '<button class="dev-btn dev-ghost mk-btn" data-act="cancel" data-id="' + esc(id) + '">Cancel</button>';
     }
   }
-  let cond = card.rarity !== 'Energy' && card.g ? '<div class="mk-cond' + (card.g[0] < condNM ? ' lp' : '') + '">' + condOf(card.g[0]) + '</div>' : '';
+  let cond = card.grade ? '<div class="mk-cond slabtag">Graded ' + card.grade + '/10</div>' : card.rarity !== 'Energy' && card.g ? '<div class="mk-cond' + (card.g[0] < condNM ? ' lp' : '') + '">' + condOf(card.g[0]) + '</div>' : '';
   let extra = mode === 'browse' ? '<div class="mk-seller">Seller: ' + esc(a.sellerName || '') + '</div>' : '';
   return '<div class="mk-tile">' + binderSlotHtml({ label: '' }, card, 96, 132) +
     '<div class="mk-name">' + esc(label(a.card.key)) + ' <span class="mk-rar">' + esc(card.rarity) + '</span></div>' + cond +
@@ -279,8 +295,18 @@ function drawSell() {
     grid += '<div class="tpick' + (ui.pick === k ? ' sel' : '') + '" data-act="aupick" data-key="' + esc(k) + '">' +
       binderSlotHtml({ label: '' }, shown, 64, 88) + '</div>';
   }
+  let slabs = (typeof grSlabs === 'function') ? grSlabs() : {};
+  let slabIds = Object.keys(slabs);
+  if (ui.slab && !slabs[ui.slab]) { ui.slab = null; }
+  let slabGrid = '';
+  for (let i = 0; i < slabIds.length; i++) {
+    slabGrid += '<div class="tpick' + (ui.slab === slabIds[i] ? ' sel' : '') + '" data-act="auslab" data-id="' + esc(slabIds[i]) + '">' + slabHtml(slabs[slabIds[i]], true) + '</div>';
+  }
   let hint = '<div class="tlabel">Tap a card to select it.</div>';
-  if (ui.pick) {
+  if (ui.slab) {
+    let sl = slabs[ui.slab];
+    hint = '<div class="tlabel">Selected: graded ' + esc(label(sl.key)) + ' (' + esc(sl.rarity) + '), grade ' + sl.grade + '/10.</div>';
+  } else if (ui.pick) {
     let c = cards[ui.pick];
     let g = scoresOf(c, ui.pick);
     let nmN = 0, lpN = 0;
@@ -299,7 +325,8 @@ function drawSell() {
     durOpts += '<option value="' + DURATIONS[i][0] + '"' + (Number(ui.hours) === DURATIONS[i][0] ? ' selected' : '') + '>' + DURATIONS[i][1] + '</option>';
   }
   box.innerHTML = '<div class="tcard"><h3>Start an auction</h3>' +
-    (keys.length ? '<div class="tpicker">' + grid + '</div>' : '<div class="tempty">You have no cards to auction.</div>') + hint +
+    (keys.length ? '<div class="tpicker">' + grid + '</div>' : '<div class="tempty">You have no cards to auction.</div>') +
+    (slabGrid ? '<div class="tlabel" style="margin-top:8px">Graded slabs</div><div class="tpicker">' + slabGrid + '</div>' : '') + hint +
     '<div class="adm-edit">Starting bid: <input class="tinput tcoin-in" id="au-price" type="number" min="1" placeholder="coins" value="' + esc(ui.price) + '"> ' +
     'Length: <select class="tinput" id="au-hours">' + durOpts + '</select> ' +
     '<button class="dev-btn" data-act="start">Start auction</button></div>' +
@@ -322,20 +349,30 @@ async function startAuction() {
   let c = me();
   if (!c || busy) { return; }
   let cards = loadCollection().cards;
-  if (!ui.pick || !cards[ui.pick]) { setMsg('Tap a card to auction first.'); return; }
+  let slabSel = ui.slab ? grSlabs()[ui.slab] : null;
+  if (!slabSel && (!ui.pick || !cards[ui.pick])) { setMsg('Tap a card to auction first.'); return; }
   let start = Math.floor(Number(ui.price));
   if (!(start >= 1) || start > MAX_PRICE) { setMsg('Enter a starting bid between 1 and ' + MAX_PRICE.toLocaleString() + ' coins.'); return; }
   let hours = DURATIONS.some(function (d) { return d[0] === Number(ui.hours); }) ? Number(ui.hours) : 24;
   if (myOpenCount() >= MAX_OPEN) { setMsg('You can run at most ' + MAX_OPEN + ' auctions at once.'); return; }
-  let key = ui.pick;
-  let src = cards[key];
-  let cond = src.rarity === 'Energy' ? null : ui.cond;
-  let have = scoresOf(src, key).filter(function (v) { return cond === null || (cond === 'NM' ? v >= condNM : v < condNM); }).length;
-  if (have < 1) { setMsg('You do not own that card in that condition.'); return; }
+  let key = slabSel ? slabSel.key : ui.pick;
+  let src = slabSel ? slabSel : cards[key];
+  let cond = (slabSel || src.rarity === 'Energy') ? null : ui.cond;
+  if (!slabSel) {
+    let have = scoresOf(src, key).filter(function (v) { return cond === null || (cond === 'NM' ? v >= condNM : v < condNM); }).length;
+    if (have < 1) { setMsg('You do not own that card in that condition.'); return; }
+  }
   busy = true;
   setMsg('Starting...', true);
-  let score = removeOne(key, cond);
+  let score;
+  if (slabSel) {
+    let taken = slabTake(slabSel.id);
+    score = taken ? taken.score : -1;
+  } else {
+    score = removeOne(key, cond);
+  }
   let card = { key: key, rarity: src.rarity || 'Common', img: src.img || '', name: src.name || '', color: src.color || '', g: score };
+  if (slabSel) { card.grade = slabSel.grade; }
   let ok = false;
   let err = '';
   if (score >= 0) {
@@ -357,6 +394,7 @@ async function startAuction() {
     }
   }
   busy = false;
+  ui.slab = null;
   refreshGame();
   drawSell();
   if (ok) {
@@ -560,7 +598,7 @@ function startListening() {
 function reset() {
   openMap = {}; mineMap = {}; bidMap = {};
   loadErr = '';
-  ui = { rarity: 'All', sort: 'soon', pick: null, cond: 'NM', price: '', hours: 24, bids: {} };
+  ui = { rarity: 'All', sort: 'soon', pick: null, slab: null, cond: 'NM', price: '', hours: 24, bids: {} };
   if ($('auction-root')) { $('auction-root').innerHTML = ''; }
 }
 
@@ -595,12 +633,14 @@ $('auction-view').addEventListener('click', function (e) {
   let act = el.dataset.act;
   if (act === 'aupick') {
     ui.pick = el.dataset.key;
+    ui.slab = null;
     let p = document.querySelector('#au-sell .tpicker');
     let s = p ? p.scrollTop : 0;
     drawSell();
     p = document.querySelector('#au-sell .tpicker');
     if (p) { p.scrollTop = s; }
   }
+  else if (act === 'auslab') { ui.slab = el.dataset.id; ui.pick = null; drawSell(); }
   else if (act === 'start') { startAuction(); }
   else if (act === 'bid') { placeBid(el.dataset.id); }
   else if (act === 'cancel') { cancelAuction(el.dataset.id); }

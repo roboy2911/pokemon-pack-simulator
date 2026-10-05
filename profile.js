@@ -69,7 +69,7 @@ function draw() {
       '<div><div><b>' + esc(String(d.lb.best.rarity || '')) + '</b></div>' +
       (num(d.lb.best.price) !== null ? '<div class="q-count">A$' + d.lb.best.price.toFixed(2) + '</div>' : '') + '</div></div>';
   }
-  let sets = d.lb ? (bar('30th Celebration', d.lb.o30, d.lb.t30) + bar('Ascended Heroes', d.lb.oAsc, d.lb.tAsc) + bar('Team Up', d.lb.oTu, d.lb.tTu)) : '';
+  let sets = d.lb ? (bar('30th Celebration', d.lb.o30, d.lb.t30) + bar('Ascended Heroes', d.lb.oAsc, d.lb.tAsc) + bar('Team Up', d.lb.oTu, d.lb.tTu) + bar('Prismatic Evolutions', d.lb.oPe, d.lb.tPe) + bar('Paldean Fates', d.lb.oPf, d.lb.tPf) + bar('Base Set', d.lb.oBs, d.lb.tBs)) : '';
   let titleText = '';
   let frameStyle = '';
   if (d.lb) {
@@ -92,6 +92,7 @@ function draw() {
     '<div><b>Packs opened</b><br>' + (d.packs || 0).toLocaleString() + '</div>' +
     '<div><b>Unique cards</b><br>' + Object.keys(d.cards).length.toLocaleString() + '</div>' +
     '<div><b>Collection value</b><br>' + esc(value) + '</div>' +
+    (d.lb && d.lb.slabs ? '<div><b>Graded slabs</b><br>' + Number(d.lb.slabs).toLocaleString() + (d.lb.g10 ? ' (' + Number(d.lb.g10).toLocaleString() + ' Gem Mint)' : '') + '</div>' : '') +
     '</div>' +
     (badges ? '<div class="pf-sec">Achievements (' + (d.lb.ach.length) + ' of ' + achList.length + ')</div><div class="pf-badges">' + badges + '</div>' : '') +
     (sets ? '<div class="pf-sec">Set progress</div>' + sets : '') + best + showcaseHtml(d) + '</div>';

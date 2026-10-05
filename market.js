@@ -19,7 +19,7 @@ let chain = Promise.resolve();
 let busy = false;
 let loadErr = '';
 let lastErr = '';
-let ui = { rarity: 'All', sort: 'cheap', pick: null, qty: 1, price: '', cond: 'NM' };
+let ui = { rarity: 'All', sort: 'cheap', pick: null, slab: null, qty: 1, price: '', cond: 'NM' };
 
 function $(id) { return document.getElementById(id); }
 
@@ -31,7 +31,10 @@ function cardOf(l) {
   let raw = {};
   raw[l.card.key] = { count: 1, rarity: l.card.rarity, img: l.card.img || '', name: l.card.name || '', color: l.card.color || '', g: [l.card.g] };
   let clean = cleanBackup({ cards: raw, packs: 0 });
-  return clean ? clean.cards[l.card.key] : null;
+  let out = clean ? clean.cards[l.card.key] : null;
+  let gr = Math.floor(Number(l.card.grade));
+  if (out && gr >= 1 && gr <= 10) { out.grade = gr; }
+  return out;
 }
 
 function priceOf(l) {
@@ -46,6 +49,7 @@ function logMarket(type, data) {
 function refreshGame() {
   updateShop();
   renderCollection();
+  if (typeof renderGrading === 'function') { renderGrading(); }
 }
 
 // Takes one copy out of the collection (lowest score of the chosen condition). Returns its score, or -1.
@@ -60,6 +64,10 @@ function removeOne(key, cond) {
 }
 
 function addOne(key, card, score) {
+  if (card && card.grade && typeof slabAdd === 'function') {
+    slabAdd({ key: key, img: card.img || '', rarity: card.rarity, name: card.name || '', color: card.color || '', score: score >= 0 ? score : 800, grade: card.grade, t: Date.now() });
+    return;
+  }
   let data = loadCollection();
   addCopies(data, key, card, [score]);
   saveCollection(data);
@@ -79,6 +87,14 @@ function timeLeft(l) {
 
 function label(key) {
   key = String(key || '');
+  let bs = key.match(/\/base1\/(\d{1,3})[\/.]/);
+  if (bs) { return 'BS #' + Number(bs[1]); }
+  let pf = key.match(/\/sv04\.5\/(\d{3})\//);
+  if (pf) { return 'PF #' + Number(pf[1]); }
+  if (key.indexOf('energy-pf-') === 0) { return key.slice(10) + ' Energy'; }
+  let pe = key.match(/\/sv08\.5\/(\d{3})\//);
+  if (pe) { return 'PE #' + Number(pe[1]); }
+  if (key.indexOf('energy-pe-') === 0) { return key.slice(10) + ' Energy'; }
   let tu = key.match(/\/sm9\/(\d{1,3})[\/.]/);
   if (tu) { return 'TU #' + Number(tu[1]); }
   if (key.indexOf('energy-tu-') === 0) { return key.slice(10) + ' Energy'; }
@@ -114,7 +130,7 @@ function tile(l, id, mode) {
   if (mode === 'browse') { extra = '<div class="mk-seller">' + esc(l.sellerName || '') + '</div>'; }
   return '<div class="mk-tile">' + binderSlotHtml({ label: '' }, card, 96, 132) +
     '<div class="mk-name">' + esc(label(l.card.key)) + ' <span class="mk-rar">' + esc(card.rarity) + '</span></div>' +
-    (card.rarity !== 'Energy' && card.g ? '<div class="mk-cond' + (card.g[0] < condNM ? ' lp' : '') + '">' + condOf(card.g[0]) + '</div>' : '') +
+    (card.grade ? '<div class="mk-cond slabtag">Graded ' + card.grade + '/10</div>' : card.rarity !== 'Energy' && card.g ? '<div class="mk-cond' + (card.g[0] < condNM ? ' lp' : '') + '">' + condOf(card.g[0]) + '</div>' : '') +
     '<div class="mk-price">' + price.toLocaleString() + ' coins</div>' + extra +
     '<div class="mk-time">' + esc(timeLeft(l)) + '</div>' + action + '</div>';
 }
@@ -243,8 +259,18 @@ function drawSell() {
     grid += '<div class="tpick' + (ui.pick === k ? ' sel' : '') + '" data-act="mkpick" data-key="' + esc(k) + '">' +
       binderSlotHtml({ label: '' }, cards[k], 64, 88) + '</div>';
   }
+  let slabs = (typeof grSlabs === 'function') ? grSlabs() : {};
+  let slabIds = Object.keys(slabs);
+  if (ui.slab && !slabs[ui.slab]) { ui.slab = null; }
+  let slabGrid = '';
+  for (let i = 0; i < slabIds.length; i++) {
+    slabGrid += '<div class="tpick' + (ui.slab === slabIds[i] ? ' sel' : '') + '" data-act="mkslab" data-id="' + esc(slabIds[i]) + '">' + slabHtml(slabs[slabIds[i]], true) + '</div>';
+  }
   let hint = '';
-  if (ui.pick) {
+  if (ui.slab) {
+    let sl = slabs[ui.slab];
+    hint = '<div class="tlabel">Selected: graded ' + esc(label(sl.key)) + ' (' + esc(sl.rarity) + '), grade ' + sl.grade + '/10. Quick-sell value: ' + slabSellValue(sl) + ' coins.</div>';
+  } else if (ui.pick) {
     let c = cards[ui.pick];
     let cheap = cheapestFor(ui.pick);
     let g = scoresOf(c, ui.pick);
@@ -263,7 +289,8 @@ function drawSell() {
     hint = '<div class="tlabel">Tap a card to select it.</div>';
   }
   box.innerHTML = '<div class="tcard"><h3>Sell a card</h3>' +
-    (keys.length ? '<div class="tpicker">' + grid + '</div>' : '<div class="tempty">You have no cards to sell.</div>') + hint +
+    (keys.length ? '<div class="tpicker">' + grid + '</div>' : '<div class="tempty">You have no cards to sell.</div>') +
+    (slabGrid ? '<div class="tlabel" style="margin-top:8px">Graded slabs</div><div class="tpicker" id="mk-slabs">' + slabGrid + '</div>' : '') + hint +
     '<div class="adm-edit">Price (each): <input class="tinput tcoin-in" id="mk-price" type="number" min="1" placeholder="coins" value="' + esc(ui.price) + '"> ' +
     'Copies: <input class="tinput tcoin-in" id="mk-qty" type="number" min="1" max="' + MAX_BATCH + '" value="' + ui.qty + '" style="width:70px"> ' +
     '<button class="dev-btn" data-act="list">List for sale</button></div>' +
@@ -295,9 +322,50 @@ function setMsg(text, ok) {
 
 // ----- Selling -----
 
+async function listSlab(c) {
+  let slabs = grSlabs();
+  let sl = slabs[ui.slab];
+  if (!sl) { setMsg('Tap a card to sell first.'); return; }
+  let price = Math.floor(Number(ui.price));
+  if (!(price >= 1) || price > MAX_PRICE) { setMsg('Enter a price between 1 and ' + MAX_PRICE.toLocaleString() + ' coins.'); return; }
+  if (myOpenCount() + 1 > MAX_OPEN) { setMsg('You can have at most ' + MAX_OPEN + ' cards listed at once.'); return; }
+  busy = true;
+  setMsg('Listing...', true);
+  let taken = slabTake(sl.id);
+  if (!taken) { busy = false; return; }
+  let card = { key: taken.key, rarity: taken.rarity, img: taken.img, name: taken.name, color: taken.color, g: taken.score, grade: taken.grade };
+  let done = false;
+  try {
+    await pushNow();
+    await setDoc(doc(collection(db, 'listings')), {
+      seller: c.uid, sellerName: c.name, buyer: '', buyerName: '',
+      card: card, price: price, status: 'open', sellerDone: false, buyerDone: false,
+      created: Date.now(), expires: Date.now() + WEEK, updated: Date.now()
+    });
+    done = true;
+  } catch (e) {
+    lastErr = (e && e.code) ? e.code : 'error';
+    addOne(card.key, card, card.g);
+    try { await pushNow(); } catch (e2) {}
+  }
+  busy = false;
+  ui.slab = null;
+  refreshGame();
+  if (typeof renderGrading === 'function') { renderGrading(); }
+  drawSell();
+  if (done) {
+    logMarket('market_list', { k: card.key, r: card.rarity, price: price, n: 1, grade: card.grade });
+    if (window.questEvent) { window.questEvent('list'); }
+    setMsg('Listed graded ' + label(card.key) + ' (grade ' + card.grade + ') for ' + price.toLocaleString() + ' coins.', true);
+  } else {
+    setMsg('Could not list that (' + lastErr + '). Nothing was lost.');
+  }
+}
+
 async function listCards() {
   let c = me();
   if (!c || busy) { return; }
+  if (ui.slab) { return listSlab(c); }
   let cards = loadCollection().cards;
   if (!ui.pick || !cards[ui.pick]) { setMsg('Tap a card to sell first.'); return; }
   let price = Math.floor(Number(ui.price));
@@ -501,7 +569,7 @@ function startListening() {
 function reset() {
   openMap = {}; mineMap = {}; boughtMap = {};
   loadErr = '';
-  ui = { rarity: 'All', sort: 'cheap', pick: null, qty: 1, price: '', cond: 'NM' };
+  ui = { rarity: 'All', sort: 'cheap', pick: null, slab: null, qty: 1, price: '', cond: 'NM' };
   if ($('market-root')) { $('market-root').innerHTML = ''; }
 }
 
@@ -522,12 +590,14 @@ $('market-view').addEventListener('click', function (e) {
   let act = el.dataset.act;
   if (act === 'mkpick') {
     ui.pick = el.dataset.key;
+    ui.slab = null;
     let p = document.querySelector('#mk-sell .tpicker');
     let s = p ? p.scrollTop : 0;
     drawSell();
     p = document.querySelector('#mk-sell .tpicker');
     if (p) { p.scrollTop = s; }
   }
+  else if (act === 'mkslab') { ui.slab = el.dataset.id; ui.pick = null; drawSell(); }
   else if (act === 'list') { listCards(); }
   else if (act === 'buy') { buyListing(el.dataset.id); }
   else if (act === 'cancel') { cancelListing(el.dataset.id); }

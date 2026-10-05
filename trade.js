@@ -7,6 +7,7 @@ import {
 const MAX_ITEMS = 40;
 const MAX_N = 999;
 const MAX_COINS = 10000000;
+const MAX_SLABS = 10;
 
 let trades = {};
 let unsubs = [];
@@ -17,7 +18,7 @@ let draft = emptyDraft();
 function $(id) { return document.getElementById(id); }
 
 function emptyDraft() {
-  return { friend: null, give: {}, get: {}, giveCoins: 0, getCoins: 0 };
+  return { friend: null, give: {}, get: {}, giveSlabs: {}, getSlabs: {}, giveCoins: 0, getCoins: 0 };
 }
 
 function coinsClamp(v) {
@@ -63,6 +64,7 @@ function owns(map, coinsAmt) {
 function refreshGame() {
   updateShop();
   renderCollection();
+  if (typeof renderGrading === 'function') { renderGrading(); }
 }
 
 function logTrade(type, extra) {
@@ -103,6 +105,49 @@ function giveItems(map, coinsAmt) {
   refreshGame();
 }
 
+// ----- Graded slabs in trades -----
+
+function mySlabs() { return (typeof grSlabs === 'function') ? grSlabs() : {}; }
+
+function slabList(arr) {
+  return (typeof grCleanSlabList === 'function') ? grCleanSlabList(arr, MAX_SLABS) : [];
+}
+
+// Do I still own every one of these slabs (same id, card and grade)?
+function ownsSlabs(list) {
+  let mine = mySlabs();
+  for (let i = 0; i < list.length; i++) {
+    let m = mine[list[i].id];
+    if (!m || m.key !== list[i].key || m.grade !== list[i].grade) { return false; }
+  }
+  return true;
+}
+
+// Takes the slabs out of my collection and returns their full records
+function takeSlabsOut(list) {
+  let out = [];
+  if (typeof slabTake !== 'function') { return out; }
+  for (let i = 0; i < list.length; i++) {
+    let got = slabTake(list[i].id);
+    if (got) { out.push(got); }
+  }
+  return out;
+}
+
+function giveSlabsIn(list) {
+  if (typeof slabAdd !== 'function') { return; }
+  for (let i = 0; i < list.length; i++) {
+    slabAdd(Object.assign({}, list[i], { t: Date.now() }));
+  }
+}
+
+function slabThumbs(list) {
+  let html = '';
+  if (typeof slabHtml !== 'function') { return html; }
+  for (let i = 0; i < list.length; i++) { html += slabHtml(list[i], true); }
+  return html;
+}
+
 function sortedKeys(map) {
   return Object.keys(map).sort(function (a, b) {
     let ra = rarityOrder.indexOf(map[a].rarity); if (ra === -1) { ra = 99; }
@@ -114,14 +159,16 @@ function sortedKeys(map) {
 
 // ----- Showing trades -----
 
-function thumbs(items, coinsAmt) {
+function thumbs(items, coinsAmt, slabs) {
   let map = itemsToMap(items);
   let keys = sortedKeys(map);
+  let sl = slabList(slabs);
   let html = '';
   for (let i = 0; i < keys.length; i++) {
     html += binderSlotHtml({ label: '' }, map[keys[i]], 56, 77);
   }
-  if (!keys.length && !coinsAmt) { html = '<span class="tempty">Nothing</span>'; }
+  html += slabThumbs(sl);
+  if (!keys.length && !sl.length && !coinsAmt) { html = '<span class="tempty">Nothing</span>'; }
   let c = coinsClamp(coinsAmt);
   let coinsLine = c ? '<div class="tcoins">+ ' + c.toLocaleString() + ' coins</div>' : '';
   return '<div class="tthumbs">' + html + '</div>' + coinsLine;
@@ -130,8 +177,8 @@ function thumbs(items, coinsAmt) {
 function tradeCard(t, id, uid) {
   let incoming = t.to === uid;
   let other = incoming ? t.fromName : t.toName;
-  let youGet = incoming ? [t.offerItems, t.offerCoins] : [t.askItems, t.askCoins];
-  let youGive = incoming ? [t.askItems, t.askCoins] : [t.offerItems, t.offerCoins];
+  let youGet = incoming ? [t.offerItems, t.offerCoins, t.offerSlabs] : [t.askItems, t.askCoins, t.askSlabs];
+  let youGive = incoming ? [t.askItems, t.askCoins, t.askSlabs] : [t.offerItems, t.offerCoins, t.offerSlabs];
   let title = incoming ? esc(other || 'Someone') + ' sent you an offer' : 'Offer to ' + esc(other || 'someone');
   let buttons = '';
   if (t.status === 'open' && incoming) {
@@ -142,8 +189,8 @@ function tradeCard(t, id, uid) {
   }
   let status = t.status === 'open' ? 'Waiting' : t.status.charAt(0).toUpperCase() + t.status.slice(1);
   return '<div class="tcard"><h3>' + title + ' <span class="tstatus">&middot; ' + esc(status) + '</span></h3>' +
-    '<div class="trow"><div class="tside"><div class="tlabel">You get</div>' + thumbs(youGet[0], youGet[1]) + '</div>' +
-    '<div class="tside"><div class="tlabel">You give</div>' + thumbs(youGive[0], youGive[1]) + '</div></div>' + buttons + '</div>';
+    '<div class="trow"><div class="tside"><div class="tlabel">You get</div>' + thumbs(youGet[0], youGet[1], youGet[2]) + '</div>' +
+    '<div class="tside"><div class="tlabel">You give</div>' + thumbs(youGive[0], youGive[1], youGive[2]) + '</div></div>' + buttons + '</div>';
 }
 
 function render() {
@@ -217,6 +264,18 @@ function pickerHtml(side, source) {
   return '<div class="tpicker">' + html + '</div>';
 }
 
+function slabPickerHtml(side, source) {
+  if (typeof slabHtml !== 'function') { return ''; }
+  let ids = Object.keys(source);
+  if (!ids.length) { return ''; }
+  let html = '';
+  for (let i = 0; i < ids.length; i++) {
+    let sl = source[ids[i]];
+    html += '<div class="tpick' + (draft[side + 'Slabs'][ids[i]] ? ' sel' : '') + '" data-act="pickslab" data-side="' + side + '" data-id="' + esc(ids[i]) + '">' + slabHtml(sl, true) + '</div>';
+  }
+  return '<div class="tlabel" style="margin-top:6px">Graded slabs</div><div class="tpicker">' + html + '</div>';
+}
+
 function renderNew() {
   let box = $('trade-new');
   if (!box) { return; }
@@ -233,9 +292,9 @@ function renderNew() {
     let mine = loadCollection().cards;
     box.innerHTML = '<div class="tcard"><h3>Trade with ' + esc(draft.friend.name) + ' <button class="link-btn" data-act="change">change</button></h3>' +
       '<div class="trow">' +
-      '<div class="tside"><div class="tlabel">You give (tap cards to add, - to remove)</div>' + pickerHtml('give', mine) +
+      '<div class="tside"><div class="tlabel">You give (tap cards to add, - to remove)</div>' + pickerHtml('give', mine) + slabPickerHtml('give', mySlabs()) +
       '<div class="tcoins">Coins: <input class="tinput tcoin-in" id="trade-give-coins" type="number" min="0" value="' + draft.giveCoins + '"> (you have ' + coins.toLocaleString() + ')</div></div>' +
-      '<div class="tside"><div class="tlabel">You get</div>' + pickerHtml('get', draft.friend.cards) +
+      '<div class="tside"><div class="tlabel">You get</div>' + pickerHtml('get', draft.friend.cards) + slabPickerHtml('get', draft.friend.slabs || {}) +
       '<div class="tcoins">Coins: <input class="tinput tcoin-in" id="trade-get-coins" type="number" min="0" value="' + draft.getCoins + '"> (they have ' + coinsClamp(draft.friend.coins).toLocaleString() + ')</div></div>' +
       '</div><div class="tbtns"><button class="dev-btn" data-act="send">Send offer</button></div>' +
       '<div class="tmsg" id="trade-msg"></div></div>';
@@ -267,12 +326,38 @@ async function findFriend() {
       uid: uid,
       name: String(d.name || u.data().name || raw).replace(/[^A-Za-z0-9_]/g, '').slice(0, 20),
       cards: clean ? clean.cards : {},
+      slabs: friendSlabs(d),
       coins: d.coins || 0
     };
     renderNew();
   } catch (e) {
     setMsg('Could not look that up (offline?).');
   }
+}
+
+function friendSlabs(d) {
+  let st = {};
+  try { st = JSON.parse(d.settledJson || '{}'); } catch (e) { st = {}; }
+  return (typeof grCleanSlabMap === 'function') ? grCleanSlabMap(st['gr:slabs']) : {};
+}
+
+function toggleSlab(side, id) {
+  let source = side === 'give' ? mySlabs() : (draft.friend ? draft.friend.slabs || {} : {});
+  if (!source[id]) { return; }
+  let list = draft[side + 'Slabs'];
+  if (list[id]) { delete list[id]; }
+  else if (Object.keys(list).length < MAX_SLABS) { list[id] = true; }
+  let scroll = {};
+  document.querySelectorAll('.tpicker').forEach(function (el, i) { scroll[i] = el.scrollTop; });
+  renderNew();
+  document.querySelectorAll('.tpicker').forEach(function (el, i) { el.scrollTop = scroll[i] || 0; });
+}
+
+function buildSlabs(side) {
+  let source = side === 'give' ? mySlabs() : (draft.friend ? draft.friend.slabs || {} : {});
+  let out = [];
+  for (let id in draft[side + 'Slabs']) { if (source[id]) { out.push(source[id]); } }
+  return out;
 }
 
 function sourceFor(side) {
@@ -309,14 +394,17 @@ async function sendOffer() {
   let getItems_ = buildItems('get');
   let giveCoins = coinsClamp(draft.giveCoins);
   let getCoins = coinsClamp(draft.getCoins);
-  if (!giveItems_.length && !getItems_.length && !giveCoins && !getCoins) { setMsg('Add something to the offer first.'); return; }
+  let giveSl = buildSlabs('give');
+  let getSl = buildSlabs('get');
+  if (!giveItems_.length && !getItems_.length && !giveSl.length && !getSl.length && !giveCoins && !getCoins) { setMsg('Add something to the offer first.'); return; }
   if (giveItems_.length > MAX_ITEMS || getItems_.length > MAX_ITEMS) { setMsg('Too many different cards (max ' + MAX_ITEMS + ' per side).'); return; }
   let giveMap = itemsToMap(giveItems_);
-  if (!owns(giveMap, giveCoins)) { setMsg("You don't have enough of those cards or coins."); return; }
+  if (!owns(giveMap, giveCoins) || !ownsSlabs(giveSl)) { setMsg("You don't have enough of those cards or coins."); return; }
   busy = true;
   setMsg('Sending...', true);
   // Your side of the offer is held in the trade until it is accepted or cancelled.
   takeItems(giveMap, giveCoins);
+  giveSl = takeSlabsOut(giveSl);
   giveItems_ = mapToItems(giveMap);
   try {
     await pushNow();
@@ -324,6 +412,7 @@ async function sendOffer() {
       from: c.uid, fromName: c.name, to: draft.friend.uid, toName: draft.friend.name,
       offerItems: giveItems_, offerCoins: giveCoins,
       askItems: getItems_, askCoins: getCoins,
+      offerSlabs: giveSl, askSlabs: getSl,
       status: 'open', fromDone: false, toDone: false,
       created: Date.now(), updated: Date.now()
     });
@@ -335,6 +424,7 @@ async function sendOffer() {
     setMsg('Offer sent to ' + name + '!', true);
   } catch (e) {
     giveItems(giveMap, giveCoins);
+    giveSlabsIn(giveSl);
     try { await pushNow(); } catch (e2) {}
     setMsg('Could not send the offer. Nothing was lost.');
     renderNew();
@@ -350,14 +440,17 @@ async function acceptOffer(id) {
   if (!c || !t || t.status !== 'open' || t.to !== c.uid || busy) { return; }
   let ask = itemsToMap(t.askItems);
   let askCoins = coinsClamp(t.askCoins);
-  if (!owns(ask, askCoins)) { $('info').innerText = "You don't have what they asked for."; return; }
+  let askSl = slabList(t.askSlabs);
+  if (!owns(ask, askCoins) || !ownsSlabs(askSl)) { $('info').innerText = "You don't have what they asked for."; return; }
   busy = true;
   takeItems(ask, askCoins);
+  askSl = takeSlabsOut(askSl);
   try {
     await pushNow();
-    await updateDoc(doc(db, 'trades', id), { status: 'accepted', askItems: mapToItems(ask), updated: Date.now() });
+    await updateDoc(doc(db, 'trades', id), { status: 'accepted', askItems: mapToItems(ask), askSlabs: askSl, updated: Date.now() });
   } catch (e) {
     giveItems(ask, askCoins);
+    giveSlabsIn(askSl);
     try { await pushNow(); } catch (e2) {}
     $('info').innerText = 'Could not accept that offer (it may have been cancelled). Nothing was lost.';
     busy = false;
@@ -397,18 +490,19 @@ async function processAll() {
     if (!role || t.status === 'open') { continue; }
     let flag = role === 'to' ? 'toDone' : 'fromDone';
     if (t[flag]) { continue; }
-    let items = null, coinsAmt = 0;
+    let items = null, coinsAmt = 0, slabs = [];
     if (role === 'to') {
       if (t.status !== 'accepted') { continue; }
-      items = t.offerItems; coinsAmt = t.offerCoins;
+      items = t.offerItems; coinsAmt = t.offerCoins; slabs = t.offerSlabs;
     } else if (t.status === 'accepted') {
-      items = t.askItems; coinsAmt = t.askCoins;
+      items = t.askItems; coinsAmt = t.askCoins; slabs = t.askSlabs;
     } else {
-      items = t.offerItems; coinsAmt = t.offerCoins;
+      items = t.offerItems; coinsAmt = t.offerCoins; slabs = t.offerSlabs;
     }
     let key = id + ':' + role;
     if (!settled[key]) {
       giveItems(itemsToMap(items), coinsClamp(coinsAmt));
+      giveSlabsIn(slabList(slabs));
       settled[key] = true;
       saveSettled();
       await pushNow();
@@ -494,6 +588,7 @@ $('trade-view').addEventListener('click', function (e) {
   else if (act === 'change') { draft = emptyDraft(); renderNew(); }
   else if (act === 'pick') { pick(el.dataset.side, el.dataset.key, 1); }
   else if (act === 'unpick') { e.stopPropagation(); pick(el.dataset.side, el.dataset.key, -1); }
+  else if (act === 'pickslab') { toggleSlab(el.dataset.side, el.dataset.id); }
   else if (act === 'send') { sendOffer(); }
   else if (act === 'accept') { acceptOffer(el.dataset.id); }
   else if (act === 'decline') { setStatus(el.dataset.id, 'declined'); }

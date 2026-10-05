@@ -144,6 +144,14 @@ function fmtTime(t) {
 
 function cardLabel(key) {
   key = String(key || '');
+  let bs = key.match(/\/base1\/(\d{1,3})[\/.]/);
+  if (bs) { return 'BS #' + Number(bs[1]); }
+  let pf = key.match(/\/sv04\.5\/(\d{3})\//);
+  if (pf) { return 'PF #' + Number(pf[1]); }
+  if (key.indexOf('energy-pf-') === 0) { return key.slice(10) + ' Energy'; }
+  let pe = key.match(/\/sv08\.5\/(\d{3})\//);
+  if (pe) { return 'PE #' + Number(pe[1]); }
+  if (key.indexOf('energy-pe-') === 0) { return key.slice(10) + ' Energy'; }
   let tu = key.match(/\/sm9\/(\d{1,3})[\/.]/);
   if (tu) { return 'TU #' + Number(tu[1]); }
   if (key.indexOf('energy-tu-') === 0) { return key.slice(10) + ' Energy'; }
@@ -425,8 +433,12 @@ function allCardsFor(rarity) {
     for (let i = 0; i < tuEnergies.length; i++) {
       list.push({ key: 'energy-tu-' + tuEnergies[i].name, rarity: 'Energy', img: tuEnergies[i].image, name: tuEnergies[i].name, color: tuEnergies[i].color, count: 1 });
     }
+    for (let i = 0; i < peEnergies.length; i++) {
+      list.push({ key: 'energy-pe-' + peEnergies[i].name, rarity: 'Energy', img: peEnergies[i].image, name: peEnergies[i].name, color: peEnergies[i].color, count: 1 });
+      list.push({ key: 'energy-pf-' + peEnergies[i].name, rarity: 'Energy', img: peEnergies[i].image, name: peEnergies[i].name, color: peEnergies[i].color, count: 1 });
+    }
   } else {
-    let urls = (byRarity[rarity] || []).concat(ascByRarity[rarity] || [], tuByRarity[rarity] || []);
+    let urls = (byRarity[rarity] || []).concat(ascByRarity[rarity] || [], tuByRarity[rarity] || [], peByRarity[rarity] || [], pfByRarity[rarity] || [], bsByRarity[rarity] || []);
     for (let i = 0; i < urls.length; i++) {
       list.push({ key: urls[i], rarity: rarity, img: urls[i], name: '', color: '', count: 1 });
     }
@@ -470,7 +482,7 @@ function drawDetail() {
   let chips = '';
   let owned = {};
   for (let i = 0; i < keys.length; i++) { owned[cards[keys[i]].rarity] = (owned[cards[keys[i]].rarity] || 0) + 1; }
-  let sets = [['30th', '30th', byRarity], ['asc', 'Ascended Heroes', ascByRarity], ['tu', 'Team Up', tuByRarity]];
+  let sets = [['30th', '30th', byRarity], ['asc', 'Ascended Heroes', ascByRarity], ['tu', 'Team Up', tuByRarity], ['pe', 'Prismatic Evolutions', peByRarity], ['pf', 'Paldean Fates', pfByRarity], ['bs', 'Base Set', bsByRarity]];
   for (let q = 0; q < sets.length; q++) {
     let own = {};
     for (let i = 0; i < keys.length; i++) {

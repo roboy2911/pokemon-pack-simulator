@@ -27,6 +27,9 @@ function score(r) {
   if (ui.cat === 'c30') { return pct(r.o30, r.t30); }
   if (ui.cat === 'casc') { return pct(r.oAsc, r.tAsc); }
   if (ui.cat === 'ctu') { return pct(r.oTu, r.tTu); }
+  if (ui.cat === 'cpe') { return pct(r.oPe, r.tPe); }
+  if (ui.cat === 'cpf') { return pct(r.oPf, r.tPf); }
+  if (ui.cat === 'cbs') { return pct(r.oBs, r.tBs); }
   if (ui.cat === 'best') { return r.best && num(r.best.price) !== null ? r.best.price : null; }
   return null;
 }
@@ -38,6 +41,9 @@ function show(r) {
   if (ui.cat === 'c30') { return s.toFixed(1) + '% (' + r.o30 + '/' + r.t30 + ')'; }
   if (ui.cat === 'casc') { return s.toFixed(1) + '% (' + r.oAsc + '/' + r.tAsc + ')'; }
   if (ui.cat === 'ctu') { return s.toFixed(1) + '% (' + r.oTu + '/' + r.tTu + ')'; }
+  if (ui.cat === 'cpe') { return s.toFixed(1) + '% (' + r.oPe + '/' + r.tPe + ')'; }
+  if (ui.cat === 'cpf') { return s.toFixed(1) + '% (' + r.oPf + '/' + r.tPf + ')'; }
+  if (ui.cat === 'cbs') { return s.toFixed(1) + '% (' + r.oBs + '/' + r.tBs + ')'; }
   return 'A$' + s.toFixed(2);
 }
 
@@ -58,7 +64,7 @@ function draw() {
     root.innerHTML = '<div class="coll-empty">Sign in to see the leaderboard.</div>';
     return;
   }
-  let cats = [['packs', 'Packs opened'], ['value', 'Collection value'], ['c30', '30th Celebration completion'], ['casc', 'Ascended Heroes completion'], ['ctu', 'Team Up completion'], ['best', 'Rarest pull (most valuable card)']];
+  let cats = [['packs', 'Packs opened'], ['value', 'Collection value'], ['c30', '30th Celebration completion'], ['casc', 'Ascended Heroes completion'], ['ctu', 'Team Up completion'], ['cpe', 'Prismatic Evolutions completion'], ['cpf', 'Paldean Fates completion'], ['cbs', 'Base Set completion'], ['best', 'Rarest pull (most valuable card)']];
   let opts = '';
   for (let i = 0; i < cats.length; i++) {
     opts += '<option value="' + cats[i][0] + '"' + (ui.cat === cats[i][0] ? ' selected' : '') + '>' + cats[i][1] + '</option>';

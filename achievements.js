@@ -25,6 +25,8 @@ let achList = [
   { id: 'binder', name: 'Organised', desc: 'Put a card in one of your binders', test: function (s) { return s.c.binder >= 1; } },
   { id: 'cleaner', name: 'Spring Cleaning', desc: 'Sell 50 spare cards', test: function (s) { return s.c.sell >= 50; } },
   { id: 'quests', name: 'Quest Runner', desc: 'Claim 10 daily quests', test: function (s) { return s.c.quest >= 10; } },
+  { id: 'grader', name: 'Slabbed', desc: 'Get a card graded', test: function (s) { return s.c.graded >= 1; } },
+  { id: 'gem', name: 'Gem Mint', desc: 'Get a grade 10', test: function (s) { return s.c.grade10 >= 1; } },
   { id: 'streak7', name: 'Weekly Visitor', desc: 'Reach a 7 day daily-reward streak', test: function (s) { return s.streak >= 7; } }
 ];
 
@@ -37,7 +39,7 @@ function achBestSet() {
   let best = 0;
   let data = loadCollection();
   let keys = Object.keys(data.cards);
-  let sets = [['30th', function () { return setReady('30th'); }], ['asc', function () { return typeof ascLoaded !== 'undefined' && ascLoaded; }], ['tu', function () { return typeof tuLoaded !== 'undefined' && tuLoaded; }]];
+  let sets = [['30th', function () { return setReady('30th'); }], ['asc', function () { return typeof ascLoaded !== 'undefined' && ascLoaded; }], ['tu', function () { return typeof tuLoaded !== 'undefined' && tuLoaded; }], ['pe', function () { return typeof peLoaded !== 'undefined' && peLoaded; }], ['pf', function () { return typeof pfLoaded !== 'undefined' && pfLoaded; }], ['bs', function () { return typeof bsLoaded !== 'undefined' && bsLoaded; }]];
   for (let q = 0; q < sets.length; q++) {
     if (!sets[q][1]()) { continue; }
     let all = setKeys(sets[q][0]);
@@ -53,7 +55,7 @@ function achBestSet() {
 function achStats() {
   let data = loadCollection();
   let c = {};
-  let names = ['rare', 'tier2', 'tier3', 'god', 'tradedone', 'list', 'sold', 'bid', 'win', 'binder', 'sell', 'quest'];
+  let names = ['rare', 'tier2', 'tier3', 'god', 'tradedone', 'list', 'sold', 'bid', 'win', 'binder', 'sell', 'quest', 'graded', 'grade10'];
   for (let i = 0; i < names.length; i++) { c[names[i]] = achCounter(names[i]); }
   return { packs: data.packs || 0, unique: Object.keys(data.cards).length, c: c, streak: (typeof streak !== 'undefined' ? streak : 0), bestSet: achBestSet() };
 }
