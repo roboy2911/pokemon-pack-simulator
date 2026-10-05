@@ -421,7 +421,7 @@ let SETS = {
     packLabel: 'Prismatic<br>Evolutions',
     rarityKey: 'customRatesPe',
     tcg: 'sv08.5', imgPath: 'sv/sv08.5', count: 180, mainCount: 131,
-    imgRe: /\/sv08\.5\/(\d{3})\//, cacheKey: 'pokemonPeCards_v1', energyPrefix: 'energy-pe-',
+    imgRe: /\/sv08\.5\/(\d{3})\//, cacheKey: 'pokemonPeCards_v1', packZoom: 1.25, energyPrefix: 'energy-pe-',
     pageBonus: null, rarityBonus: null
   },
   'pf': {
@@ -443,7 +443,7 @@ let SETS = {
     packLabel: 'Base<br>Set',
     rarityKey: 'customRatesBs',
     tcg: 'base1', imgPath: 'base/base1', count: 102, mainCount: 102,
-    imgRe: /\/base1\/(\d{1,3})[\/.]/, cacheKey: 'pokemonBsCards_v1', energyPrefix: 'energy-bs-',
+    imgRe: /\/base1\/(\d{1,3})[\/.]/, cacheKey: 'pokemonBsCards_v2', energyPrefix: 'energy-bs-',
     pageBonus: null, rarityBonus: null
   }
 };
@@ -2306,8 +2306,18 @@ function buildStack(items) {
   pack.innerHTML = '';
 
   let packH = cardH;
+  let cover = SETS[curSet] && SETS[curSet].packZoom ? SETS[curSet].packZoom : 0;
+  let imgW = cardW, imgH = 0, offX = 0, offY = 0;
   if (packRatio) {
     packH = Math.round(cardW * packRatio);
+    if (cover) {
+      // zoom into the picture so the pack fills a card-sized area
+      packH = cardH;
+      imgH = Math.round(cardH * cover);
+      imgW = Math.round(imgH / packRatio);
+      offX = -Math.round((imgW - cardW) / 2);
+      offY = -Math.round((imgH - cardH) / 2);
+    }
   }
   let boxH = Math.max(cardH, packH);
 
@@ -2341,11 +2351,13 @@ function buildStack(items) {
   if (packRatio) {
     let tearH = Math.round(packH * tearFraction);
     let picture = 'url(' + packImageUrl + ')';
-    let size = cardW + 'px ' + packH + 'px';
+    let size = cover ? (imgW + 'px ' + imgH + 'px') : (cardW + 'px ' + packH + 'px');
+    let posTop = cover ? (offX + 'px ' + offY + 'px') : '0 0';
+    let posBody = cover ? (offX + 'px ' + (offY - tearH) + 'px') : ('0 -' + tearH + 'px');
     pack.insertAdjacentHTML('beforeend',
       '<div class="boosterpack imagepack" id="boosterpack" style="height:' + packH + 'px">' +
-      '<div class="packtop" style="height:' + tearH + 'px; background:' + picture + ' 0 0 / ' + size + ' no-repeat;"></div>' +
-      '<div class="packbody" style="top:' + tearH + 'px; height:' + (packH - tearH) + 'px; background:' + picture + ' 0 -' + tearH + 'px / ' + size + ' no-repeat;"></div>' +
+      '<div class="packtop" style="height:' + tearH + 'px; background:' + picture + ' ' + posTop + ' / ' + size + ' no-repeat;"></div>' +
+      '<div class="packbody" style="top:' + tearH + 'px; height:' + (packH - tearH) + 'px; background:' + picture + ' ' + posBody + ' / ' + size + ' no-repeat;"></div>' +
       '</div>');
   } else {
     pack.insertAdjacentHTML('beforeend',
