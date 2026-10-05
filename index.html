@@ -4,6 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pokemon Pack Simulator</title>
+<meta name="description" content="A free fan-made pack opening game. Open packs, build binders, trade, auction and compete with other players.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Pokemon Pack Simulator">
+<meta property="og:description" content="Open packs, build binders, trade, auction and compete. Free fan-made game.">
+<meta property="og:url" content="https://roboy2911.github.io/pokemon-pack-simulator/">
+<meta property="og:image" content="https://roboy2911.github.io/pokemon-pack-simulator/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Pokemon Pack Simulator">
+<meta name="twitter:description" content="Open packs, build binders, trade, auction and compete. Free fan-made game.">
+<meta name="twitter:image" content="https://roboy2911.github.io/pokemon-pack-simulator/og-image.png">
+<meta name="theme-color" content="#2b2b2b">
 <style>
   body {
     margin: 0;
@@ -587,7 +600,7 @@
 </head>
 <body>
   <div class="dev-overlay" id="dev-overlay"><div class="dev-box" id="dev-box"></div></div>
-  <div class="ver-label">V1.6</div>
+  <div class="ver-label">V1.7</div>
   <button class="sound-btn acct-btn" id="acct-btn">Sign in</button>
   <div class="dev-overlay" id="acct-overlay"><div class="dev-box" id="acct-box"></div></div>
   <button class="sound-btn" id="sound-btn" onclick="toggleSound()">Sound: on</button>
@@ -673,13 +686,13 @@
   </section>
 
   <footer class="site-footer">
-    <div class="footer-discord">Join our community on <a href="https://discord.gg/tugHFgdex" target="_blank" rel="noopener noreferrer">Discord</a> to trade, share pulls and give feedback.</div>
+    <div class="footer-discord">Join our community on <a href="https://discord.gg/tugHFgdex" target="_blank" rel="noopener noreferrer">Discord</a> to trade, share pulls and give feedback. <button class="link-btn" id="share-btn" onclick="shareSite()">Share this game</button> <span id="share-note"></span></div>
     Unofficial fan project. Not affiliated with, endorsed by, or sponsored by Nintendo, Creatures Inc., GAME FREAK inc. or The Pok&eacute;mon Company.
     Pok&eacute;mon and all related names, card artwork and images are trademarks and copyrights of their respective owners.
     This is a free, non-commercial simulator and no real cards or prizes are involved.
   </footer>
 
-  <script src="script.js?v=18"></script>
+  <script src="script.js?v=19"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="trade.js"></script>
   <script type="module" src="admin.js"></script>

@@ -2924,3 +2924,25 @@ applySet();
 loadMode();
 renderCollection();
 loadCards();
+
+
+// ---------- Share button ----------
+
+function shareSite() {
+  let url = 'https://roboy2911.github.io/pokemon-pack-simulator/';
+  let note = document.getElementById('share-note');
+  let say = function (text) {
+    if (!note) { return; }
+    note.textContent = text;
+    setTimeout(function () { note.textContent = ''; }, 3000);
+  };
+  if (navigator.share) {
+    navigator.share({ title: 'Pokemon Pack Simulator', text: 'Open packs, trade and auction cards in this free fan-made game.', url: url }).catch(function () {});
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function () { say('Link copied!'); }, function () { say(url); });
+  } else {
+    say(url);
+  }
+}
