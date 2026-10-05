@@ -417,7 +417,7 @@ let SETS = {
     id: 'pe',
     name: 'Prismatic Evolutions',
     cost: 100,
-    packImage: 'https://tse2.mm.bing.net/th/id/OIP.9LZtg7zfonuBQ5mqKuLHMgHaHa?r=0&rs=1&pid=ImgDetMain&o=7&rm=3',
+    packImage: 'https://cdnx.jumpseller.com/geekers1/image/56447402/resize/1200/1200?1731071637',
     packLabel: 'Prismatic<br>Evolutions',
     rarityKey: 'customRatesPe',
     tcg: 'sv08.5', imgPath: 'sv/sv08.5', count: 180, mainCount: 131,
@@ -543,9 +543,9 @@ let tuEnergies = energies.map(function (e, i) {
   return { name: e.name, color: e.color, image: 'https://pkmncards.com/wp-content/uploads/en_US-SM_Energy-' + String(i + 1).padStart(3, '0') + '-' + e.name.toLowerCase() + '_energy-1.jpg' };
 });
 
-// Prismatic Evolutions energies: the Scarlet & Violet Energy cards (TCGdex set sve, numbers 1-8); a coloured box shows if a picture fails
+// Prismatic Evolutions and Paldean Fates energies: the Scarlet & Violet Energy cards (pokemontcg.io set sve, numbers 1-8); a coloured box shows if a picture fails
 let peEnergies = energies.map(function (e, i) {
-  return { name: e.name, color: e.color, image: 'https://assets.tcgdex.net/en/sv/sve/' + String(i + 1).padStart(3, '0') + '/low.webp' };
+  return { name: e.name, color: e.color, image: 'https://images.pokemontcg.io/sve/' + (i + 1) + '.png' };
 });
 
 function energyList(setId) {
@@ -2960,8 +2960,8 @@ async function loadTG(setId) {
     }
     if (missing.length === 0) { break; }
     if (curSet === setId) { document.getElementById('info').innerText = 'Loading ' + cfg.name + '... ' + (cfg.count - missing.length) + '/' + cfg.count; }
-    for (let i = 0; i < missing.length; i += 40) {
-      let batch = missing.slice(i, i + 40);
+    for (let i = 0; i < missing.length; i += 70) {
+      let batch = missing.slice(i, i + 70);
       let results = await Promise.all(batch.map(function (p) { return getTgCard(cfg.tcg, p); }));
       for (let j = 0; j < batch.length; j++) {
         let card = results[j];
@@ -2992,7 +2992,10 @@ async function loadTG(setId) {
     let c = info[padded];
     if (!c) { continue; }
     let url = 'https://assets.tcgdex.net/en/' + cfg.imgPath + '/' + padded + '/low.webp';
-    if (c.i) {
+    if (setId === 'bs') {
+      // the 1st Edition stamp is on the TCGdex scans, so Base Set uses plain unlimited scans
+      url = 'https://images.pokemontcg.io/base1/' + n + '.png';
+    } else if (c.i) {
       url = c.i + '/low.webp';
     } else if (setId === 'tu') {
       url = 'https://images.pokemontcg.io/sm9/' + n + '.png';
@@ -3399,6 +3402,17 @@ loadPriceCache();
 loadSortMode();
 loadSound();
 setupSwipe();
+// Start loading the other sets as soon as the set menu is touched, so picking one is quick
+(function () {
+  let sel = document.getElementById('set-select');
+  if (!sel) { return; }
+  let warm = function () {
+    ['bs', 'pe', 'pf', 'tu'].forEach(function (id) { if (SETS[id] && !setReady(id)) { loadTG(id); } });
+  };
+  sel.addEventListener('focus', warm);
+  sel.addEventListener('mousedown', warm);
+  sel.addEventListener('touchstart', warm, { passive: true });
+})();
 loadSetChoice();
 applySet();
 loadMode();
